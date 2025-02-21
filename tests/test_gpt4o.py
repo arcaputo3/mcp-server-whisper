@@ -6,8 +6,9 @@ from unittest.mock import patch, MagicMock
 from whisper_local.gpt4o import do_gpt4o_audio
 from whisper_local.conversation import load_conversation
 
+
 @pytest.mark.usefixtures("mock_audio_segment_all")
-@patch("os.path.getsize", return_value=30*1024*1024)
+@patch("os.path.getsize", return_value=30 * 1024 * 1024)
 def test_do_gpt4o_audio_above_limit(mock_getsize, tmp_path, capsys):
     """
     If the final compressed file is still above 25MB, do_gpt4o_audio should exit.
@@ -85,12 +86,21 @@ def test_do_gpt4o_audio_audio_output(mock_create, tmp_path):
         audio_output = True
         conversation_file = None
 
-    mock_create.return_value = MagicMock(choices=[
-        MagicMock(message=MagicMock(content=[
-            {"type": "text", "text": "Here is some text"},
-            {"type": "audio", "audio": {"data": "U29tZUJhc2U2NA==", "format": "wav"}}
-        ]))
-    ])
+    mock_create.return_value = MagicMock(
+        choices=[
+            MagicMock(
+                message=MagicMock(
+                    content=[
+                        {"type": "text", "text": "Here is some text"},
+                        {
+                            "type": "audio",
+                            "audio": {"data": "U29tZUJhc2U2NA==", "format": "wav"},
+                        },
+                    ]
+                )
+            )
+        ]
+    )
     do_gpt4o_audio(Args())
 
     # After the function, we expect "assistant_response.wav" to exist
@@ -143,7 +153,7 @@ def test_do_gpt4o_audio_conversation(mock_create, tmp_path):
     conv_file = tmp_path / "conv.json"
     initial_data = [
         {"role": "user", "content": "Hello from before!"},
-        {"role": "assistant", "content": "Hello user!"}
+        {"role": "assistant", "content": "Hello user!"},
     ]
     conv_file.write_text(json.dumps(initial_data), encoding="utf-8")
 
@@ -173,7 +183,10 @@ def test_do_gpt4o_audio_conversation(mock_create, tmp_path):
 
 
 @pytest.mark.usefixtures("mock_audio_segment_all")
-@patch("whisper_local.gpt4o.openai.chat.completions.create", side_effect=Exception("GPT-4o error"))
+@patch(
+    "whisper_local.gpt4o.openai.chat.completions.create",
+    side_effect=Exception("GPT-4o error"),
+)
 def test_do_gpt4o_audio_openai_fail(mock_create, tmp_path, capsys):
     """
     If openai call fails, do_gpt4o_audio should exit with error code 1 and print the error.

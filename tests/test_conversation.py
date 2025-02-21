@@ -3,6 +3,7 @@ import pytest
 import os
 from whisper_local.conversation import load_conversation, save_conversation
 
+
 def test_load_conversation_nonexistent(tmp_path):
     """
     If the conversation file does not exist, load_conversation should return an empty list.
@@ -10,6 +11,7 @@ def test_load_conversation_nonexistent(tmp_path):
     non_existent_file = tmp_path / "no_such_file.json"
     conversation = load_conversation(str(non_existent_file))
     assert conversation == []
+
 
 def test_load_conversation_valid(tmp_path):
     """
@@ -23,6 +25,7 @@ def test_load_conversation_valid(tmp_path):
     conversation = load_conversation(str(test_file))
     assert conversation == data
 
+
 def test_load_conversation_invalid_json(tmp_path):
     """
     If the conversation file exists but is invalid JSON, load_conversation should return an empty list.
@@ -33,6 +36,7 @@ def test_load_conversation_invalid_json(tmp_path):
     conversation = load_conversation(str(test_file))
     assert conversation == []
 
+
 def test_save_conversation(tmp_path):
     """
     Test that save_conversation writes JSON to the file.
@@ -40,7 +44,7 @@ def test_save_conversation(tmp_path):
     test_file = tmp_path / "conversation.json"
     conversation_data = [
         {"role": "user", "content": "Hi"},
-        {"role": "assistant", "content": "Hello!"}
+        {"role": "assistant", "content": "Hello!"},
     ]
     save_conversation(conversation_data, str(test_file))
     assert test_file.exists()
@@ -48,6 +52,7 @@ def test_save_conversation(tmp_path):
     with open(test_file, "r", encoding="utf-8") as f:
         loaded = json.load(f)
     assert loaded == conversation_data
+
 
 def test_save_conversation_failure(tmp_path, monkeypatch):
     """

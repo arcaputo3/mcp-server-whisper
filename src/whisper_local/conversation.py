@@ -23,7 +23,9 @@ def load_conversation(conversation_file: str) -> Any:
     return []
 
 
-def save_conversation(conversation: list[dict[str, Any]], conversation_file: str) -> None:
+def save_conversation(
+    conversation: list[dict[str, Any]], conversation_file: str
+) -> None:
     """
     Save the conversation context to a JSON file.
 

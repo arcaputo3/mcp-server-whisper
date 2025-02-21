@@ -1,14 +1,16 @@
 import argparse
 import os
 import sys
-import base64
 import copy
-import openai
+import base64
+from openai import AsyncOpenAI
+
 
 from .conversation import load_conversation, save_conversation
 from .convert import convert_to_supported_format, maybe_compress_file
 
-def do_gpt4o_audio(args: argparse.Namespace) -> None:
+
+async def do_gpt4o_audio(client: AsyncOpenAI, args: argparse.Namespace) -> None:
     """
     Send audio to GPT-4o via ChatCompletion API. Supports:
         - Checking file size limits (<=25MB)
@@ -19,6 +21,7 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
         - Requesting text or audio output
 
     Args:
+        client: AsyncOpenAI
         args (argparse.Namespace): Parsed CLI arguments.
             - args.input: Path to input audio file
             - args.output: Path to output text file (optional)
@@ -40,7 +43,7 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
     if ext not in ("wav", "mp3"):
         print(f"Converting {args.input} from {ext} to a supported format (mp3)...")
         try:
-            new_path = convert_to_supported_format(args.input, target_format="mp3")
+            new_path = await convert_to_supported_format(args.input, target_format="mp3")
             args.input = new_path
             ext = "mp3"
         except Exception as e:
@@ -49,7 +52,7 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
 
     # Check size and compress if needed
     try:
-        args.input = maybe_compress_file(args.input, max_mb=25)
+        args.input = await maybe_compress_file(args.input, max_mb=25)
     except Exception as e:
         print(f"Error during compression: {str(e)}")
         sys.exit(1)
@@ -57,7 +60,9 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
     # After possible compression, final size check
     file_size = os.path.getsize(args.input)
     if file_size > 25 * 1024 * 1024:
-        print(f"Error: Even after compression, audio file '{args.input}' exceeds 25MB limit.")
+        print(
+            f"Error: Even after compression, audio file '{args.input}' exceeds 25MB limit."
+        )
         sys.exit(1)
 
     # Load and base64-encode the (now guaranteed <=25MB) audio
@@ -66,7 +71,9 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
             audio_bytes = audio_file.read()
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
     except FileNotFoundError:
-        print(f"Error: Could not find audio file '{args.input}' after conversion/compression.")
+        print(
+            f"Error: Could not find audio file '{args.input}' after conversion/compression."
+        )
         sys.exit(1)
     except Exception as e:
         print(f"Error reading audio file: {str(e)}")
@@ -105,7 +112,7 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
 
     # Now call GPT-4o
     try:
-        completion = openai.chat.completions.create(
+        completion = await client.chat.completions.create(
             model=args.gpt4o_model,
             modalities=modalities_list,
             messages=messages_for_api,

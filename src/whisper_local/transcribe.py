@@ -3,9 +3,9 @@ import os
 import openai
 
 from .convert import convert_to_supported_format, maybe_compress_file
-from .convert import AudioSegment
 
-def do_whisper_transcription(args):
+
+async def do_whisper_transcription(args):
     """
     Transcribe audio using the Whisper API via openai.Audio.
 
@@ -27,7 +27,7 @@ def do_whisper_transcription(args):
             f">Converting {args.input} from {ext} to a supported format (mp3) for Whisper transcription..."
         )
         try:
-            new_path = convert_to_supported_format(args.input, target_format="mp3")
+            new_path = await convert_to_supported_format(args.input, target_format="mp3")
             args.input = new_path
         except Exception as e:
             print(f"Error converting file: {e}")
@@ -35,7 +35,7 @@ def do_whisper_transcription(args):
 
     # Attempt compression if above 25MB
     try:
-        args.input = maybe_compress_file(args.input, max_mb=25)
+        args.input = await maybe_compress_file(args.input, max_mb=25)
     except Exception as e:
         print(f"Error during compression: {str(e)}")
         sys.exit(1)
@@ -51,9 +51,7 @@ def do_whisper_transcription(args):
     try:
         with open(args.input, "rb") as audio_file:
             transcript = openai.audio.transcriptions.create(
-                model=args.model,
-                file=audio_file,
-                response_format="text"
+                model=args.model, file=audio_file, response_format="text"
             )
 
         if args.output:

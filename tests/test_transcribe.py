@@ -4,6 +4,7 @@ import sys
 from unittest.mock import patch, MagicMock
 from whisper_local.transcribe import do_whisper_transcription
 
+
 @patch("whisper_local.transcribe.openai")
 def test_do_whisper_transcription_success(mock_openai, tmp_path):
     """
@@ -27,6 +28,7 @@ def test_do_whisper_transcription_file_not_found(tmp_path, capsys):
     """
     If input file is missing, exit with error.
     """
+
     class Args:
         input = str(tmp_path / "nope.wav")
         output = None
@@ -46,11 +48,7 @@ def test_do_whisper_transcription_file_not_found(tmp_path, capsys):
 @patch("os.path.getsize", return_value=10 * 1024 * 1024)  # final size check passes
 @patch("whisper_local.transcribe.openai.audio.transcriptions.create")
 def test_do_whisper_transcription_conversion(
-    mock_transcribe,
-    mock_getsize,
-    mock_compress,
-    mock_convert,
-    tmp_path
+    mock_transcribe, mock_getsize, mock_compress, mock_convert, tmp_path
 ):
     """
     If the extension is not mp3 or wav, we convert it, possibly compress, then transcribe.
@@ -81,15 +79,13 @@ def test_do_whisper_transcription_conversion(
     mock_transcribe.assert_called_once()
 
 
-@patch("os.path.getsize", return_value=30*1024*1024)  # final file remains 30MB
-@patch("whisper_local.transcribe.convert_to_supported_format", return_value="converted.mp3")
+@patch("os.path.getsize", return_value=30 * 1024 * 1024)  # final file remains 30MB
+@patch(
+    "whisper_local.transcribe.convert_to_supported_format", return_value="converted.mp3"
+)
 @patch("whisper_local.transcribe.maybe_compress_file", return_value="compressed.mp3")
 def test_do_whisper_transcription_too_big(
-    mock_compress,
-    mock_convert,
-    mock_getsize,
-    tmp_path,
-    capsys
+    mock_compress, mock_convert, mock_getsize, tmp_path, capsys
 ):
     """
     If after conversion/compression the file is still > 25MB, do_whisper_transcription should exit.

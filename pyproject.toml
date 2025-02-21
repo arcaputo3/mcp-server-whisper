@@ -2,10 +2,12 @@
 name = "whisper-local"
 version = "0.1.0"
 description = "A template repo for using OpenAI whisper"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
+    "aiofiles",
     "dotenv",
     "ffmpeg-python",
+    "mcp",                # <-- Added MCP here
     "openai",
     "pydub"
 ]

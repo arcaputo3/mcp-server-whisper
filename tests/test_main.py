@@ -4,6 +4,7 @@ import sys
 from unittest.mock import patch, MagicMock
 from whisper_local.main import main
 
+
 def test_main_whisper(tmp_path, monkeypatch):
     """
     If --use-gpt4o is not provided, main should call do_whisper_transcription.
@@ -14,7 +15,9 @@ def test_main_whisper(tmp_path, monkeypatch):
     mocked_transcribe = MagicMock()
     mocked_gpt4o = MagicMock()
 
-    monkeypatch.setattr("whisper_local.main.do_whisper_transcription", mocked_transcribe)
+    monkeypatch.setattr(
+        "whisper_local.main.do_whisper_transcription", mocked_transcribe
+    )
     monkeypatch.setattr("whisper_local.main.do_gpt4o_audio", mocked_gpt4o)
 
     # Use monkeypatch to set sys.argv
@@ -23,6 +26,7 @@ def test_main_whisper(tmp_path, monkeypatch):
 
     mocked_transcribe.assert_called_once()
     mocked_gpt4o.assert_not_called()
+
 
 def test_main_gpt4o(tmp_path, monkeypatch):
     """
@@ -34,7 +38,9 @@ def test_main_gpt4o(tmp_path, monkeypatch):
     mocked_transcribe = MagicMock()
     mocked_gpt4o = MagicMock()
 
-    monkeypatch.setattr("whisper_local.main.do_whisper_transcription", mocked_transcribe)
+    monkeypatch.setattr(
+        "whisper_local.main.do_whisper_transcription", mocked_transcribe
+    )
     monkeypatch.setattr("whisper_local.main.do_gpt4o_audio", mocked_gpt4o)
 
     monkeypatch.setattr(sys, "argv", ["prog", str(test_audio), "--use-gpt4o"])
@@ -42,6 +48,7 @@ def test_main_gpt4o(tmp_path, monkeypatch):
 
     mocked_transcribe.assert_not_called()
     mocked_gpt4o.assert_called_once()
+
 
 def test_main_file_not_found(tmp_path, monkeypatch, capsys):
     """

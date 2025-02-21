@@ -1,5 +1,6 @@
 import argparse
 
+
 def parse_args(argv=None) -> argparse.Namespace:
     """
     Parses CLI arguments for Whisper or GPT-4o usage.
@@ -15,9 +16,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
 
     # Positional argument: Path to audio file (common for both Whisper and GPT-4o)
-    parser.add_argument(
-        "input", help="Path to input audio file"
-    )
+    parser.add_argument("input", help="Path to input audio file")
 
     # Common output text file option (used if the user wants to save text transcription/response)
     parser.add_argument("-o", "--output", help="Path to output text file (optional)")

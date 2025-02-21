@@ -2,6 +2,7 @@ import pytest
 import os
 from unittest.mock import MagicMock
 
+
 @pytest.fixture(autouse=True)
 def mock_openai_api_key(monkeypatch):
     """
@@ -20,5 +21,7 @@ def mock_audio_segment_all(monkeypatch):
     """
     mock_audio = MagicMock()
     mock_audio.export = MagicMock()
-    monkeypatch.setattr("pydub.AudioSegment.from_file", MagicMock(return_value=mock_audio))
+    monkeypatch.setattr(
+        "pydub.AudioSegment.from_file", MagicMock(return_value=mock_audio)
+    )
     return mock_audio
