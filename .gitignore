@@ -1,0 +1,18 @@
+# Environment
+.env
+.venv
+
+# IDE
+.idea
+
+# CLI Output
+output/output.txt
+
+# Repomix
+repomix*
+
+input/
+output/
+
+*.pyc
+__pycache__
