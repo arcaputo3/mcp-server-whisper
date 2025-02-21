@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import base64
+import copy
 import openai
 
 from .conversation import load_conversation, save_conversation
@@ -21,7 +22,7 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
         args (argparse.Namespace): Parsed CLI arguments.
             - args.input: Path to input audio file
             - args.output: Path to output text file (optional)
-            - args.gpt4o_model: Name of GPT-4o model (default: gpt-4o-audio-preview-2024-10-01)
+            - args.gpt4o_model: Name of GPT-4o model
             - args.modalities: Comma-separated string of requested modalities (e.g., "text,audio")
             - args.text_prompt: Optional text prompt to include with the audio
             - args.audio_output: Boolean; if True, request audio in the response
@@ -93,18 +94,21 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
     audio_config = None
     if args.audio_output:
         audio_config = {
-            "voice": "alloy",  # example voice name
+            "voice": "alloy",
             "format": "wav",
         }
         if "audio" not in modalities_list:
             modalities_list.append("audio")
+
+    # Create a copy of conversation for the API call
+    messages_for_api = copy.deepcopy(conversation)
 
     # Now call GPT-4o
     try:
         completion = openai.chat.completions.create(
             model=args.gpt4o_model,
             modalities=modalities_list,
-            messages=conversation,
+            messages=messages_for_api,
             audio=audio_config,
         )
     except Exception as e:
@@ -131,7 +135,6 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
                 audio_data_b64 = segment["audio"]["data"]
                 audio_format = segment["audio"]["format"]
                 print(f"Assistant returned audio in format: {audio_format}")
-                # Save the audio file
                 with open(f"assistant_response.{audio_format}", "wb") as f:
                     f.write(base64.b64decode(audio_data_b64))
     else:

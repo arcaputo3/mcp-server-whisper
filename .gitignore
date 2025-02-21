@@ -16,3 +16,6 @@ output/
 
 *.pyc
 __pycache__
+
+# Testing
+pytest.txt

@@ -17,6 +17,7 @@ whisper-local = "whisper_local.main:main"
 dev = [
     "mypy",
     "pre-commit",
+    "pytest",
     "ruff"
 ]
 

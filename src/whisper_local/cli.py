@@ -1,9 +1,11 @@
 import argparse
 
-
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     """
     Parses CLI arguments for Whisper or GPT-4o usage.
+
+    Args:
+        argv (list[str], optional): If provided, parse these arguments instead of sys.argv.
 
     Returns:
         argparse.Namespace: Parsed arguments.
@@ -15,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     # Positional argument: Path to audio file (common for both Whisper and GPT-4o)
     parser.add_argument(
         "input", help="Path to input audio file"
-    )  # /Users/rcaputo3/Movies/Omi Screen Recorder/Audio-2025-02-20-224204.m4a
+    )
 
     # Common output text file option (used if the user wants to save text transcription/response)
     parser.add_argument("-o", "--output", help="Path to output text file (optional)")
@@ -63,10 +65,10 @@ def parse_args() -> argparse.Namespace:
         help='Request an audio response from GPT-4o (must include "audio" in modalities)',
     )
 
-    # For conversation continuity across multiple runs, store the conversation in a JSON file
+    # For conversation continuity, store the conversation in a JSON file
     parser.add_argument(
         "--conversation-file",
         help="Path to a JSON file for saving/loading conversation context",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
