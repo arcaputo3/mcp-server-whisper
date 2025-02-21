@@ -2,8 +2,8 @@ import sys
 import os
 import openai
 
-from .convert import convert_to_supported_format
-
+from .convert import convert_to_supported_format, maybe_compress_file
+from .convert import AudioSegment
 
 def do_whisper_transcription(args):
     """
@@ -24,7 +24,7 @@ def do_whisper_transcription(args):
     ext = ext.lower().replace(".", "")
     if ext not in ("wav", "mp3"):
         print(
-            f"Converting {args.input} from {ext} to a supported format (wav) for Whisper transcription..."
+            f">Converting {args.input} from {ext} to a supported format (mp3) for Whisper transcription..."
         )
         try:
             new_path = convert_to_supported_format(args.input, target_format="mp3")
@@ -33,17 +33,27 @@ def do_whisper_transcription(args):
             print(f"Error converting file: {e}")
             sys.exit(1)
 
-    # Double-check file size if desired (Whisper also has a 25MB max limit).
+    # Attempt compression if above 25MB
+    try:
+        args.input = maybe_compress_file(args.input, max_mb=25)
+    except Exception as e:
+        print(f"Error during compression: {str(e)}")
+        sys.exit(1)
+
+    # After possible compression, check final size
     max_size = 25 * 1024 * 1024  # 25 MB
     file_size = os.path.getsize(args.input)
     if file_size > max_size:
-        print(f"Error: Audio file '{args.input}' exceeds 25MB size limit.")
+        print(f"Error: Even after compression, '{args.input}' is still above 25MB.")
         sys.exit(1)
 
+    # Now we can safely send to Whisper
     try:
         with open(args.input, "rb") as audio_file:
             transcript = openai.audio.transcriptions.create(
-                model=args.model, file=audio_file, response_format="text"
+                model=args.model,
+                file=audio_file,
+                response_format="text"
             )
 
         if args.output:
@@ -53,7 +63,7 @@ def do_whisper_transcription(args):
             print(transcript)
 
     except FileNotFoundError:
-        print(f"Error: Could not find audio file '{args.input}' after conversion.")
+        print(f"Error: Could not find audio file '{args.input}' after processing.")
         sys.exit(1)
     except Exception as e:
         print(f"Error: {str(e)}")

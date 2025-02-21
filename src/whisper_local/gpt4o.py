@@ -5,13 +5,13 @@ import base64
 import openai
 
 from .conversation import load_conversation, save_conversation
-from .convert import convert_to_supported_format
-
+from .convert import convert_to_supported_format, maybe_compress_file
 
 def do_gpt4o_audio(args: argparse.Namespace) -> None:
     """
     Send audio to GPT-4o via ChatCompletion API. Supports:
         - Checking file size limits (<=25MB)
+        - Automatic compression if size is above 25MB
         - Base64 encoding
         - Adding optional text prompt
         - Conversation context loading & saving
@@ -27,7 +27,6 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
             - args.audio_output: Boolean; if True, request audio in the response
             - args.conversation_file: JSON file to load/save conversation context
     """
-    # First, check if the file exists
     if not os.path.isfile(args.input):
         print(f"Error: Could not find audio file '{args.input}'")
         sys.exit(1)
@@ -36,9 +35,9 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
     _, ext = os.path.splitext(args.input)
     ext = ext.lower().replace(".", "")
 
-    # If the extension is not supported by OpenAI (mp3 or wav), convert it
+    # If the extension is not mp3 or wav, convert to mp3
     if ext not in ("wav", "mp3"):
-        print(f"Converting {args.input} from {ext} to a supported format (wav)...")
+        print(f"Converting {args.input} from {ext} to a supported format (mp3)...")
         try:
             new_path = convert_to_supported_format(args.input, target_format="mp3")
             args.input = new_path
@@ -47,20 +46,26 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
             print(f"Error converting file: {e}")
             sys.exit(1)
 
-    # Now that we have a supported format, check file size limit (<= 25MB).
-    file_size = os.path.getsize(args.input)
-    max_size = 25 * 1024 * 1024  # 25 MB
-    if file_size > max_size:
-        print(f"Error: Audio file '{args.input}' exceeds 25MB size limit.")
+    # Check size and compress if needed
+    try:
+        args.input = maybe_compress_file(args.input, max_mb=25)
+    except Exception as e:
+        print(f"Error during compression: {str(e)}")
         sys.exit(1)
 
-    # Load and base64-encode the audio
+    # After possible compression, final size check
+    file_size = os.path.getsize(args.input)
+    if file_size > 25 * 1024 * 1024:
+        print(f"Error: Even after compression, audio file '{args.input}' exceeds 25MB limit.")
+        sys.exit(1)
+
+    # Load and base64-encode the (now guaranteed <=25MB) audio
     try:
         with open(args.input, "rb") as audio_file:
             audio_bytes = audio_file.read()
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
     except FileNotFoundError:
-        print(f"Error: Could not find audio file '{args.input}' after conversion.")
+        print(f"Error: Could not find audio file '{args.input}' after conversion/compression.")
         sys.exit(1)
     except Exception as e:
         print(f"Error reading audio file: {str(e)}")
@@ -126,7 +131,7 @@ def do_gpt4o_audio(args: argparse.Namespace) -> None:
                 audio_data_b64 = segment["audio"]["data"]
                 audio_format = segment["audio"]["format"]
                 print(f"Assistant returned audio in format: {audio_format}")
-                # If you want to save the audio, e.g. "assistant_response.wav":
+                # Save the audio file
                 with open(f"assistant_response.{audio_format}", "wb") as f:
                     f.write(base64.b64decode(audio_data_b64))
     else:
