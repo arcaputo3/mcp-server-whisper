@@ -303,7 +303,7 @@ Finally, let’s outline how to practically integrate all this into your project
 First, install the MCP Python SDK: `pip install mcp`. This gives you access to the `mcp` package and the FastMCP utilities ([mcp · PyPI](https://pypi.org/project/mcp/#:~:text=uv%20add%20)) ([mcp · PyPI](https://pypi.org/project/mcp/#:~:text=pip%20install%20mcp)). In your code, import what’s needed:
 
 ```python
-# In mcp_server.py or similar
+# In server.py or similar
 from mcp.server.fastmcp import FastMCP
 ```
 
@@ -365,7 +365,7 @@ The documentation suggests using `mcp dev server.py` command for testing, which 
 
 ```python
 # In main logic
-server_params = StdioServerParameters(command="python", args=["mcp_server.py"])
+server_params = StdioServerParameters(command="python", args=["server.py"])
 async with stdio_client(server_params) as (read, write):
     async with ClientSession(read, write) as session:
         await session.initialize()

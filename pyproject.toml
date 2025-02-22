@@ -7,14 +7,13 @@ dependencies = [
     "aiofiles",
     "dotenv",
     "ffmpeg-python",
-    "mcp",                # <-- Added MCP here
+    "mcp[cli]",                # <-- Added MCP here
     "openai",
     "pydub"
 ]
 
 [project.scripts]
-whisper-local = "whisper_local.main:main"
-server = "whisper_local.mcp_server:main"
+server = "mcp_server_whisper.server:main"
 
 [dependency-groups]
 dev = [
