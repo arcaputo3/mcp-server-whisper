@@ -14,13 +14,21 @@ dependencies = [
 
 [project.scripts]
 whisper-local = "whisper_local.main:main"
+server = "whisper_local.mcp_server:main"
 
 [dependency-groups]
 dev = [
     "mypy",
     "pre-commit",
     "pytest",
+    "pytest-asyncio",
     "ruff"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:Unused async fixture loop scope:pytest.PytestWarning"
 ]
 
 [build-system]

@@ -1,63 +1,113 @@
 import os
-from openai import AsyncOpenAI
+import base64
+from typing import Optional, List
 from mcp.server.fastmcp import FastMCP
-
-# Import existing utility functions for file conversion and compression
-from whisper_local.convert import convert_to_supported_format, maybe_compress_file
+from openai import AsyncOpenAI
+from .convert import convert_to_supported_format, maybe_compress_file
 
 mcp = FastMCP("AudioGPT")
 
-
 @mcp.tool()
-async def transcribe_audio(file_path: str) -> str:
-    """Transcribe an audio file to text using the OpenAI Whisper API via MCP.
+async def transcribe_audio(
+    file_path: str,
+    use_gpt4o: bool = False,
+    model: str = "whisper-1",
+    text_prompt: Optional[str] = None,
+    modalities: Optional[List[str]] = None,
+    audio_output: bool = False,
+) -> str:
+    """Transcribe audio using either Whisper API or GPT-4o."""
 
-    Args:
-        file_path (str): Path to the local audio file.
-    Returns:
-        str: The transcribed text.
-    Raises:
-        ValueError: If the file is missing, or processing fails.
-        RuntimeError: If the OpenAI transcription call fails.
-    """
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    client = AsyncOpenAI()
     if not os.path.isfile(file_path):
         raise ValueError(f"File not found: {file_path}")
 
-    # Attempt to convert unsupported formats to mp3
+    # Get format and convert if needed
     _, ext = os.path.splitext(file_path)
     ext = ext.lower().replace(".", "")
+    
     if ext not in ("wav", "mp3"):
         try:
-            file_path = await convert_to_supported_format(file_path, target_format="mp3")
+            new_path = await convert_to_supported_format(file_path, "mp3")
+            file_path = new_path
+            ext = "mp3"
         except Exception as e:
-            raise ValueError(f"Error converting file: {str(e)}")
+            raise ValueError(f"Error converting file: {e}")
 
-    # Attempt compression if over 25 MB
+    # Check size and compress if needed
     try:
         file_path = await maybe_compress_file(file_path, max_mb=25)
     except Exception as e:
-        raise ValueError(f"Error during compression: {str(e)}")
+        raise ValueError(f"Error during compression: {e}")
 
-    # Final size check
-    max_size = 25 * 1024 * 1024  # 25 MB
-    if os.path.getsize(file_path) > max_size:
-        raise ValueError(f"File '{file_path}' is still above 25MB after compression.")
+    if os.path.getsize(file_path) > 25 * 1024 * 1024:
+        raise ValueError(f"File '{file_path}' still exceeds 25MB limit after compression")
 
-    # Perform transcription via OpenAI Whisper API
-    try:
+    client = AsyncOpenAI()
+
+    if use_gpt4o:
+        # Load and base64-encode audio
         with open(file_path, "rb") as audio_file:
-            transcript = await client.audio.transcriptions.create(
-                model="whisper-1", file=audio_file, response_format="text"
-            )
-            return transcript
-    except Exception as e:
-        raise RuntimeError(f"Transcription failed: {str(e)}")
+            audio_bytes = audio_file.read()
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
 
+        # Build message content
+        user_content = []
+        if text_prompt:
+            user_content.append({"type": "text", "text": text_prompt})
+        user_content.append(
+            {"type": "input_audio", "input_audio": {"data": audio_b64, "format": ext}}
+        )
+
+        # Configure audio output if requested
+        audio_config = None
+        modalities_list = modalities or ["text"]
+        if audio_output:
+            audio_config = {"voice": "alloy", "format": "wav"}
+            if "audio" not in modalities_list:
+                modalities_list.append("audio")
+
+        try:
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": user_content}],
+                modalities=modalities_list,
+                audio=audio_config,
+            )
+            
+            response = completion.choices[0].message
+
+            # Handle different response formats
+            if isinstance(response.content, list):
+                text_output = ""
+                for segment in response.content:
+                    if segment.get("type") == "text":
+                        text_output += segment.get("text", "") + "\n"
+                    elif segment.get("type") == "audio" and audio_output:
+                        audio_data = segment["audio"]["data"]
+                        audio_format = segment["audio"]["format"]
+                        with open(f"response.{audio_format}", "wb") as f:
+                            f.write(base64.b64decode(audio_data))
+                return text_output.strip()
+            else:
+                return response.content
+
+        except Exception as e:
+            raise ValueError(f"GPT-4o processing failed: {str(e)}")
+
+    else:  # Use Whisper
+        try:
+            with open(file_path, "rb") as audio_file:
+                transcript = await client.audio.transcriptions.create(
+                    model=model,
+                    file=audio_file,
+                    response_format="text"
+                )
+                return transcript
+        except Exception as e:
+            raise ValueError(f"Whisper processing failed: {str(e)}")
+
+def main():
+    mcp.run()
 
 if __name__ == "__main__":
-    # Run the MCP server over stdio (blocking call)
-    mcp.run()
+    main()
