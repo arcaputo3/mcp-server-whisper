@@ -30,19 +30,19 @@ async def convert_to_supported_format(
         output_path = base + f".{target_format}"
 
     try:
-        async with aiofiles.open(input_file, 'rb') as f:
-            audio_data = await f.read()
-            audio = await asyncio.to_thread(
-                AudioSegment.from_file, 
-                audio_data, 
-                format=os.path.splitext(input_file)[1][1:]
-            )
+        # Load audio file directly from path instead of reading bytes first
+        audio = await asyncio.to_thread(
+            AudioSegment.from_file,
+            input_file,
+            format=os.path.splitext(input_file)[1][1:],
+        )
+        
         await asyncio.to_thread(
             audio.export, output_path, format=target_format, parameters=["-ac", "2"]
         )
         return output_path
     except Exception as e:
-        raise Exception(f"Error converting file: {str(e)}")
+        raise RuntimeError(f"Audio conversion failed: {str(e)}")
 
 
 async def compress_mp3_file(
@@ -63,13 +63,12 @@ async def compress_mp3_file(
     print(f"[Compression] Output file:   {output_path}")
 
     try:
-        async with aiofiles.open(mp3_file_path, 'rb') as f:
-            audio_data = await f.read()
-            audio_file = await asyncio.to_thread(
-                AudioSegment.from_file,
-                audio_data,
-                format="mp3"
-            )
+        # Load audio file directly from path instead of reading bytes first
+        audio_file = await asyncio.to_thread(
+            AudioSegment.from_file,
+            mp3_file_path,
+            format="mp3"
+        )
         original_frame_rate = audio_file.frame_rate
         print(
             f"[Compression] Original frame rate: {original_frame_rate}, converting to {out_sample_rate}."
@@ -93,7 +92,7 @@ async def maybe_compress_file(
     If no output_path provided, returns the compressed_{stem}.mp3 path if compression happens,
     otherwise returns the original path.
     """
-    async with aiofiles.open(input_file, 'rb') as f:
+    async with aiofiles.open(input_file, "rb") as f:
         file_size = len(await f.read())
     threshold_bytes = max_mb * 1024 * 1024
 
@@ -117,7 +116,7 @@ async def maybe_compress_file(
     except Exception as e:
         raise Exception(f"[maybe_compress_file] Error compressing MP3 file: {str(e)}")
 
-    async with aiofiles.open(compressed_path, 'rb') as f:
+    async with aiofiles.open(compressed_path, "rb") as f:
         new_size = len(await f.read())
     print(f"[maybe_compress_file] Compressed file size: {new_size} bytes")
     return compressed_path
