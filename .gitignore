@@ -22,3 +22,6 @@ pytest.txt
 
 # Diffs
 changes.txt
+
+# MacOS
+.DS_Store
