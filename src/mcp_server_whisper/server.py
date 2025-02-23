@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 from openai import AsyncOpenAI
 import os
 import asyncio
+import aiofiles
 from pydub import AudioSegment
 from typing import Literal
 
@@ -12,7 +13,7 @@ AudioLLM = Literal["gpt-4o-audio-preview-2024-10-01"]
 AudioTranscription = Literal["whisper-1"]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
 
-mcp = FastMCP("whisper", dependencies=["openai", "pydub"])
+mcp = FastMCP("whisper", dependencies=["openai", "pydub", "aiofiles"])
 
 
 async def convert_to_supported_format(
@@ -29,7 +30,13 @@ async def convert_to_supported_format(
         output_path = base + f".{target_format}"
 
     try:
-        audio = await asyncio.to_thread(AudioSegment.from_file, input_file)
+        async with aiofiles.open(input_file, 'rb') as f:
+            audio_data = await f.read()
+            audio = await asyncio.to_thread(
+                AudioSegment.from_file, 
+                audio_data, 
+                format=os.path.splitext(input_file)[1][1:]
+            )
         await asyncio.to_thread(
             audio.export, output_path, format=target_format, parameters=["-ac", "2"]
         )
@@ -56,9 +63,13 @@ async def compress_mp3_file(
     print(f"[Compression] Output file:   {output_path}")
 
     try:
-        audio_file = await asyncio.to_thread(
-            AudioSegment.from_file, mp3_file_path, "mp3"
-        )
+        async with aiofiles.open(mp3_file_path, 'rb') as f:
+            audio_data = await f.read()
+            audio_file = await asyncio.to_thread(
+                AudioSegment.from_file,
+                audio_data,
+                format="mp3"
+            )
         original_frame_rate = audio_file.frame_rate
         print(
             f"[Compression] Original frame rate: {original_frame_rate}, converting to {out_sample_rate}."
@@ -82,7 +93,8 @@ async def maybe_compress_file(
     If no output_path provided, returns the compressed_{stem}.mp3 path if compression happens,
     otherwise returns the original path.
     """
-    file_size = os.path.getsize(input_file)
+    async with aiofiles.open(input_file, 'rb') as f:
+        file_size = len(await f.read())
     threshold_bytes = max_mb * 1024 * 1024
 
     if file_size <= threshold_bytes:
@@ -105,7 +117,8 @@ async def maybe_compress_file(
     except Exception as e:
         raise Exception(f"[maybe_compress_file] Error compressing MP3 file: {str(e)}")
 
-    new_size = os.path.getsize(compressed_path)
+    async with aiofiles.open(compressed_path, 'rb') as f:
+        new_size = len(await f.read())
     print(f"[maybe_compress_file] Compressed file size: {new_size} bytes")
     return compressed_path
 
@@ -172,7 +185,7 @@ async def transcribe_audio(
 async def transcribe_with_llm(
     file_path: str,
     text_prompt: Optional[str] = None,
-    model: AudioLLM = "gpt-4-0125-preview",
+    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01",
 ) -> Dict[str, Any]:
     """
     Transcribe audio using GPT-4 with optional text prompt for context.
