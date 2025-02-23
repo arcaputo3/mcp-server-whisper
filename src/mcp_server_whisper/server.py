@@ -1,17 +1,48 @@
+import asyncio
 import base64
-from typing import Optional, Dict, Any
+import os
+from typing import Any, Dict, List, Literal, Optional
+
+import aiofiles
 from mcp.server.fastmcp import FastMCP
 from openai import AsyncOpenAI
-import os
-import asyncio
-import aiofiles
+from pydantic import BaseModel, Field
 from pydub import AudioSegment
-from typing import Literal
 
 SupportedAudioFormat = Literal["mp3", "wav"]
 AudioLLM = Literal["gpt-4o-audio-preview-2024-10-01"]
 AudioTranscription = Literal["whisper-1"]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
+
+
+class ConvertAudioInput(BaseModel):
+    input_file: str
+    output_path: Optional[str] = None
+    target_format: SupportedAudioFormat = "mp3"
+
+
+class CompressAudioInput(BaseModel):
+    input_file: str
+    output_path: Optional[str] = None
+    max_mb: int = Field(default=25, gt=0)
+
+
+class TranscribeAudioInput(BaseModel):
+    file_path: str
+    model: AudioTranscription = "whisper-1"
+
+
+class TranscribeWithLLMInput(BaseModel):
+    file_path: str
+    text_prompt: Optional[str] = None
+    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
+
+
+class TranscribeWithEnhancementInput(BaseModel):
+    file_path: str
+    enhancement_type: EnhancementType = "detailed"
+    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
+
 
 mcp = FastMCP("whisper", dependencies=["openai", "pydub", "aiofiles"])
 
@@ -36,18 +67,14 @@ async def convert_to_supported_format(
             input_file,
             format=os.path.splitext(input_file)[1][1:],
         )
-        
-        await asyncio.to_thread(
-            audio.export, output_path, format=target_format, parameters=["-ac", "2"]
-        )
+
+        await asyncio.to_thread(audio.export, output_path, format=target_format, parameters=["-ac", "2"])
         return output_path
     except Exception as e:
         raise RuntimeError(f"Audio conversion failed: {str(e)}")
 
 
-async def compress_mp3_file(
-    mp3_file_path: str, output_path: str | None = None, out_sample_rate: int = 11025
-) -> str:
+async def compress_mp3_file(mp3_file_path: str, output_path: str | None = None, out_sample_rate: int = 11025) -> str:
     """
     Downsample an existing mp3. If no output_path provided, returns a file named 'compressed_{original_stem}.mp3'.
     """
@@ -64,15 +91,9 @@ async def compress_mp3_file(
 
     try:
         # Load audio file directly from path instead of reading bytes first
-        audio_file = await asyncio.to_thread(
-            AudioSegment.from_file,
-            mp3_file_path,
-            format="mp3"
-        )
+        audio_file = await asyncio.to_thread(AudioSegment.from_file, mp3_file_path, format="mp3")
         original_frame_rate = audio_file.frame_rate
-        print(
-            f"[Compression] Original frame rate: {original_frame_rate}, converting to {out_sample_rate}."
-        )
+        print(f"[Compression] Original frame rate: {original_frame_rate}, converting to {out_sample_rate}.")
         await asyncio.to_thread(
             audio_file.export,
             output_path,
@@ -84,9 +105,7 @@ async def compress_mp3_file(
         raise Exception(f"Error compressing mp3 file: {str(e)}")
 
 
-async def maybe_compress_file(
-    input_file: str, output_path: str | None = None, max_mb: int = 25
-) -> str:
+async def maybe_compress_file(input_file: str, output_path: str | None = None, max_mb: int = 25) -> str:
     """
     If file is above {max_mb}, convert to mp3 if needed, then compress.
     If no output_path provided, returns the compressed_{stem}.mp3 path if compression happens,
@@ -99,9 +118,7 @@ async def maybe_compress_file(
     if file_size <= threshold_bytes:
         return input_file  # No compression needed
 
-    print(
-        f"\n[maybe_compress_file] File '{input_file}' size > {max_mb}MB. Attempting compression..."
-    )
+    print(f"\n[maybe_compress_file] File '{input_file}' size > {max_mb}MB. Attempting compression...")
 
     # If not mp3, convert
     if not input_file.lower().endswith(".mp3"):
@@ -123,122 +140,116 @@ async def maybe_compress_file(
 
 
 @mcp.tool()
-async def convert_audio(
-    input_file: str,
-    output_path: Optional[str] = None,
-    target_format: SupportedAudioFormat = "mp3",
-) -> Dict[str, str]:
+async def convert_audio(inputs: List[ConvertAudioInput]) -> List[Dict[str, str]]:
     """
-    Convert an audio file to a supported format (mp3 or wav)
+    Convert multiple audio files to supported formats (mp3 or wav) in parallel
     """
-    try:
-        output_file = await convert_to_supported_format(
-            input_file, output_path, target_format
-        )
-        return {"output_path": output_file}
-    except Exception as e:
-        raise RuntimeError(f"Audio conversion failed: {str(e)}")
+
+    async def process_single(input_data: ConvertAudioInput) -> Dict[str, str]:
+        try:
+            output_file = await convert_to_supported_format(
+                input_data.input_file, input_data.output_path, input_data.target_format
+            )
+            return {"output_path": output_file}
+        except Exception as e:
+            raise RuntimeError(f"Audio conversion failed for {input_data.input_file}: {str(e)}")
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 @mcp.tool()
-async def compress_audio(
-    input_file: str, output_path: Optional[str] = None, max_mb: int = 25
-) -> Dict[str, str]:
+async def compress_audio(inputs: List[CompressAudioInput]) -> List[Dict[str, str]]:
     """
-    Compress an audio file if it's larger than max_mb
+    Compress multiple audio files in parallel if they're larger than max_mb
     """
-    try:
-        output_file = await maybe_compress_file(input_file, output_path, max_mb)
-        return {"output_path": output_file}
-    except Exception as e:
-        raise RuntimeError(f"Audio compression failed: {str(e)}")
+
+    async def process_single(input_data: CompressAudioInput) -> Dict[str, str]:
+        try:
+            output_file = await maybe_compress_file(input_data.input_file, input_data.output_path, input_data.max_mb)
+            return {"output_path": output_file}
+        except Exception as e:
+            raise RuntimeError(f"Audio compression failed for {input_data.input_file}: {str(e)}")
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 @mcp.tool()
-async def transcribe_audio(
-    file_path: str,
-    model: AudioTranscription = "whisper-1",
-) -> Dict[str, Any]:
+async def transcribe_audio(inputs: List[TranscribeAudioInput]) -> List[Dict[str, Any]]:
     """
-    Basic audio transcription using Whisper API.
+    Basic audio transcription using Whisper API for multiple files in parallel.
     Raises an exception on failure, so MCP returns a proper JSON error.
     """
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
 
-    # Prepare OpenAI client
-    client = AsyncOpenAI()
+    async def process_single(input_data: TranscribeAudioInput) -> Dict[str, Any]:
+        if not os.path.isfile(input_data.file_path):
+            raise FileNotFoundError(f"File not found: {input_data.file_path}")
 
-    try:
-        with open(file_path, "rb") as audio_file:
-            transcript = await client.audio.transcriptions.create(
-                model=model, file=audio_file, response_format="text"
-            )
-    except Exception as e:
-        raise RuntimeError(f"Whisper processing failed: {e}") from e
+        client = AsyncOpenAI()
 
-    return {"text": transcript}
+        try:
+            with open(input_data.file_path, "rb") as audio_file:
+                transcript = await client.audio.transcriptions.create(
+                    model=input_data.model, file=audio_file, response_format="text"
+                )
+            return {"text": transcript}
+        except Exception as e:
+            raise RuntimeError(f"Whisper processing failed for {input_data.file_path}: {e}") from e
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 @mcp.tool()
 async def transcribe_with_llm(
-    file_path: str,
-    text_prompt: Optional[str] = None,
-    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01",
-) -> Dict[str, Any]:
+    inputs: List[TranscribeWithLLMInput],
+) -> List[Dict[str, Any]]:
     """
-    Transcribe audio using GPT-4 with optional text prompt for context.
+    Transcribe multiple audio files using GPT-4 with optional text prompts in parallel
     """
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
 
-    # Get format from extension
-    _, ext = os.path.splitext(file_path)
-    ext = ext.lower().replace(".", "")
+    async def process_single(input_data: TranscribeWithLLMInput) -> Dict[str, Any]:
+        if not os.path.isfile(input_data.file_path):
+            raise FileNotFoundError(f"File not found: {input_data.file_path}")
 
-    # Load and encode audio file
-    try:
-        with open(file_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-    except Exception as e:
-        raise RuntimeError(f"Failed reading audio file '{file_path}': {e}") from e
+        _, ext = os.path.splitext(input_data.file_path)
+        ext = ext.lower().replace(".", "")
 
-    # Prepare OpenAI client
-    client = AsyncOpenAI()
+        try:
+            with open(input_data.file_path, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        except Exception as e:
+            raise RuntimeError(f"Failed reading audio file '{input_data.file_path}': {e}") from e
 
-    # Construct message content
-    user_content = []
-    if text_prompt:
-        user_content.append({"type": "text", "text": text_prompt})
-    user_content.append(
-        {
-            "type": "input_audio",
-            "input_audio": {"data": audio_b64, "format": ext},
-        }
-    )
-
-    try:
-        completion = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": user_content}],
-            modalities=["text"],
+        client = AsyncOpenAI()
+        user_content = []
+        if input_data.text_prompt:
+            user_content.append({"type": "text", "text": input_data.text_prompt})
+        user_content.append(
+            {
+                "type": "input_audio",
+                "input_audio": {"data": audio_b64, "format": ext},
+            }
         )
-    except Exception as e:
-        raise RuntimeError(f"GPT-4 processing failed: {e}") from e
 
-    response = completion.choices[0].message
-    return {"text": response.content}
+        try:
+            completion = await client.chat.completions.create(
+                model=input_data.model,
+                messages=[{"role": "user", "content": user_content}],
+                modalities=["text"],
+            )
+            return {"text": completion.choices[0].message.content}
+        except Exception as e:
+            raise RuntimeError(f"GPT-4 processing failed for {input_data.file_path}: {e}") from e
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 @mcp.tool()
 async def transcribe_with_enhancement(
-    file_path: str,
-    enhancement_type: EnhancementType = "detailed",
-    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01",
-) -> Dict[str, Any]:
+    inputs: List[TranscribeWithEnhancementInput],
+) -> List[Dict[str, Any]]:
     """
-    Transcribe audio with GPT-4 using specific enhancement prompts.
+    Transcribe multiple audio files with GPT-4 using specific enhancement prompts in parallel
     Enhancement types:
     - detailed: Provides detailed description including tone, emotion, and background
     - storytelling: Transforms the transcription into a narrative
@@ -246,22 +257,31 @@ async def transcribe_with_enhancement(
     - analytical: Includes analysis of speech patterns, key points, and structure
     """
     enhancement_prompts = {
-        "detailed": "Please transcribe this audio and include details about tone of voice, emotional undertones, and any background elements you notice. Make it rich and descriptive.",
-        "storytelling": "Transform this audio into an engaging narrative. Maintain the core message but present it as a story.",
-        "professional": "Transcribe this audio and format it in a professional, business-appropriate manner. Clean up any verbal fillers and structure it clearly.",
-        "analytical": "Transcribe this audio and analyze the speech patterns, key discussion points, and overall structure. Include observations about delivery and organization.",
+        "detailed": "Please transcribe this audio and include details about tone of voice, emotional undertones, and any background elements you notice. Make it rich and descriptive.",  # noqa: E501
+        "storytelling": "Transform this audio into an engaging narrative. Maintain the core message but present it as a story.",  # noqa: E501
+        "professional": "Transcribe this audio and format it in a professional, business-appropriate manner. Clean up any verbal fillers and structure it clearly.",  # noqa: E501
+        "analytical": "Transcribe this audio and analyze the speech patterns, key discussion points, and overall structure. Include observations about delivery and organization.",  # noqa: E501
     }
 
-    if enhancement_type not in enhancement_prompts:
-        raise ValueError(
-            f"Invalid enhancement_type. Must be one of: {', '.join(enhancement_prompts.keys())}"
-        )
+    async def process_single(
+        input_data: TranscribeWithEnhancementInput,
+    ) -> Dict[str, Any]:
+        if input_data.enhancement_type not in enhancement_prompts:
+            raise ValueError(f"Invalid enhancement_type. Must be one of: {', '.join(enhancement_prompts.keys())}")
 
-    return await transcribe_with_llm(
-        file_path=file_path,
-        text_prompt=enhancement_prompts[enhancement_type],
-        model=model,
-    )
+        return (
+            await transcribe_with_llm(
+                [
+                    TranscribeWithLLMInput(
+                        file_path=input_data.file_path,
+                        text_prompt=enhancement_prompts[input_data.enhancement_type],
+                        model=input_data.model,
+                    )
+                ]
+            )
+        )[0]
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 def main():

@@ -24,6 +24,24 @@ dev = [
     "ruff"
 ]
 
+[tool.ruff]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff.lint]
+select = [
+    # Pyflakes
+    "F",
+    # Pycodestyle
+    "E",
+    "W",
+    # isort
+    "I001"
+]
+ignore = ["F401"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 filterwarnings = [
