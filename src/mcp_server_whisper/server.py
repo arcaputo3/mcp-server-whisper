@@ -44,7 +44,96 @@ class TranscribeWithEnhancementInput(BaseModel):
     model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
 
 
-mcp = FastMCP("whisper", dependencies=["openai", "pydub", "aiofiles"])
+class PathSupport(BaseModel):
+    path: str
+    transcription_support: Optional[list[AudioTranscription]] = None
+    llm_support: Optional[list[AudioLLM]] = None
+    modified_time: float
+
+
+mcp = FastMCP("whisper", dependencies=["openai", "pydub", "aiofiles", "pandas", "tabulate"])
+
+
+def get_audio_file_support(file_path: str) -> PathSupport:
+    """Helper function to determine audio file format support"""
+    whisper_formats = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
+    gpt4o_formats = {".mp3", ".wav"}
+
+    file_ext = os.path.splitext(file_path.lower())[1]
+
+    transcription_support = ["whisper-1"] if file_ext in whisper_formats else None
+    llm_support = ["gpt-4o-audio-preview-2024-10-01"] if file_ext in gpt4o_formats else None
+
+    return PathSupport(
+        path=file_path,
+        transcription_support=transcription_support,
+        llm_support=llm_support,
+        modified_time=os.path.getmtime(file_path),
+    )
+
+
+@mcp.tool()
+async def get_latest_audio() -> PathSupport:
+    """
+    Gets the most recently modified audio file and returns its path with model support info.
+
+    Supported formats:
+    - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
+    - GPT-4o: mp3, wav
+    """
+    audio_path = os.getenv("AUDIO_FILES_PATH")
+    if not audio_path:
+        raise ValueError("AUDIO_FILES_PATH environment variable not set")
+
+    whisper_formats = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
+    gpt4o_formats = {".mp3", ".wav"}
+
+    try:
+        files = []
+        for file in os.listdir(audio_path):
+            file_ext = os.path.splitext(file.lower())[1]
+            if file_ext in whisper_formats or file_ext in gpt4o_formats:
+                full_path = os.path.abspath(os.path.join(audio_path, file))
+                files.append((full_path, os.path.getmtime(full_path)))
+
+        if not files:
+            raise RuntimeError("No supported audio files found")
+
+        latest_file = max(files, key=lambda x: x[1])[0]
+        return get_audio_file_support(latest_file)
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to get latest audio file: {e}") from e
+
+
+@mcp.resource("dir://audio")
+def list_audio_files() -> List[PathSupport]:
+    """
+    Lists all audio files in the AUDIO_FILES_PATH directory with format support info.
+
+    Supported formats:
+    - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
+    - GPT-4o: mp3, wav
+    """
+    audio_path = os.getenv("AUDIO_FILES_PATH")
+    if not audio_path:
+        raise ValueError("AUDIO_FILES_PATH environment variable not set")
+
+    whisper_formats = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
+    gpt4o_formats = {".mp3", ".wav"}
+
+    try:
+        files = []
+        for file in os.listdir(audio_path):
+            file_ext = os.path.splitext(file.lower())[1]
+            if file_ext in whisper_formats or file_ext in gpt4o_formats:
+                abs_path = os.path.abspath(os.path.join(audio_path, file))
+                files.append(get_audio_file_support(abs_path))
+
+        return sorted(files, key=lambda x: x.path)
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to list audio files: {e}") from e
 
 
 async def convert_to_supported_format(

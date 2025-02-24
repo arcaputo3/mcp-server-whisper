@@ -11,7 +11,7 @@ output/output.txt
 # Repomix
 repomix*
 
-input/
+input*
 output/
 
 *.pyc

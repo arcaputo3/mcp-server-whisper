@@ -9,7 +9,9 @@ dependencies = [
     "ffmpeg-python",
     "mcp[cli]",
     "openai",
-    "pydub"
+    "pandas",
+    "pydub",
+    "tabulate",
 ]
 
 [project.scripts]
