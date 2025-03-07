@@ -18,41 +18,46 @@ AudioLLM = Literal["gpt-4o-audio-preview-2024-10-01"]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
 
 
-class ConvertAudioInputParams(BaseModel):
+class BaseInputPath(BaseModel):
+    """Base file path input."""
+
+    input_file_path: str
+
+
+class BaseAudioInputParams(BaseInputPath):
+    """Base params for converting audio to mp3."""
+
+    output_file_path: Optional[str] = None
+
+
+class ConvertAudioInputParams(BaseAudioInputParams):
     """Params for converting audio to mp3."""
 
-    input_file: str
-    output_path: Optional[str] = None
     target_format: SupportedAudioFormat = "mp3"
 
 
-class CompressAudioInputParams(BaseModel):
+class CompressAudioInputParams(BaseAudioInputParams):
     """Params for compressing audio."""
 
-    input_file: str
-    output_path: Optional[str] = None
     max_mb: int = Field(default=25, gt=0)
 
 
-class TranscribeAudioInputParams(BaseModel):
+class TranscribeAudioInputParams(BaseInputPath):
     """Params for transcribing audio with audio-to-text model."""
 
-    file_path: str
     model: AudioModel = "whisper-1"
 
 
-class TranscribeWithLLMInputParams(BaseModel):
+class TranscribeWithLLMInputParams(BaseInputPath):
     """Params for transcribing audio with LLM using custom prompt."""
 
-    file_path: str
     text_prompt: Optional[str] = None
     model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
 
 
-class TranscribeWithEnhancementInputParams(BaseModel):
+class TranscribeWithEnhancementInputParams(BaseInputPath):
     """Params for transcribing audio with LLM using template prompt."""
 
-    file_path: str
     enhancement_type: EnhancementType = "detailed"
     model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
 
@@ -60,7 +65,7 @@ class TranscribeWithEnhancementInputParams(BaseModel):
 class FilePathSupportParams(BaseModel):
     """Params for checking if a file at a path supports transcription."""
 
-    path: str
+    file_path: str
     transcription_support: Optional[list[AudioModel]] = None
     llm_support: Optional[list[AudioLLM]] = None
     modified_time: float
@@ -82,7 +87,7 @@ def get_audio_file_support(file_path: str) -> FilePathSupportParams:
     )
 
     return FilePathSupportParams(
-        path=file_path,
+        file_path=file_path,
         transcription_support=transcription_support,
         llm_support=llm_support,
         modified_time=os.path.getmtime(file_path),
@@ -145,7 +150,7 @@ def list_audio_files() -> list[FilePathSupportParams]:
                 abs_path = os.path.abspath(os.path.join(audio_path, file))
                 files.append(get_audio_file_support(abs_path))
 
-        return sorted(files, key=lambda x: x.path)
+        return sorted(files, key=lambda x: x.file_path)
 
     except Exception as e:
         raise RuntimeError(f"Failed to list audio files: {e}") from e
@@ -251,11 +256,11 @@ async def convert_audio(inputs: list[ConvertAudioInputParams]) -> list[dict[str,
     async def process_single(input_data: ConvertAudioInputParams) -> dict[str, str]:
         try:
             output_file = await convert_to_supported_format(
-                input_data.input_file, input_data.output_path, input_data.target_format
+                input_data.input_file_path, input_data.output_file_path, input_data.target_format
             )
             return {"output_path": output_file}
         except Exception as e:
-            raise RuntimeError(f"Audio conversion failed for {input_data.input_file}: {str(e)}")
+            raise RuntimeError(f"Audio conversion failed for {input_data.input_file_path}: {str(e)}")
 
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
@@ -266,10 +271,12 @@ async def compress_audio(inputs: list[CompressAudioInputParams]) -> list[dict[st
 
     async def process_single(input_data: CompressAudioInputParams) -> dict[str, str]:
         try:
-            output_file = await maybe_compress_file(input_data.input_file, input_data.output_path, input_data.max_mb)
+            output_file = await maybe_compress_file(
+                input_data.input_file_path, input_data.output_file_path, input_data.max_mb
+            )
             return {"output_path": output_file}
         except Exception as e:
-            raise RuntimeError(f"Audio compression failed for {input_data.input_file}: {str(e)}")
+            raise RuntimeError(f"Audio compression failed for {input_data.input_file_path}: {str(e)}")
 
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
@@ -282,19 +289,19 @@ async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dic
     """
 
     async def process_single(input_data: TranscribeAudioInputParams) -> dict[str, Any]:
-        if not os.path.isfile(input_data.file_path):
-            raise FileNotFoundError(f"File not found: {input_data.file_path}")
+        if not os.path.isfile(input_data.input_file_path):
+            raise FileNotFoundError(f"File not found: {input_data.input_file_path}")
 
         client = AsyncOpenAI()
 
         try:
-            with open(input_data.file_path, "rb") as audio_file:
+            with open(input_data.input_file_path, "rb") as audio_file:
                 transcript = await client.audio.transcriptions.create(
                     model=input_data.model, file=audio_file, response_format="text"
                 )
             return {"text": transcript}
         except Exception as e:
-            raise RuntimeError(f"Whisper processing failed for {input_data.file_path}: {e}") from e
+            raise RuntimeError(f"Whisper processing failed for {input_data.input_file_path}: {e}") from e
 
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
@@ -306,19 +313,19 @@ async def transcribe_with_llm(
     """Transcribe multiple audio files using GPT-4 with optional text prompts in parallel."""
 
     async def process_single(input_data: TranscribeWithLLMInputParams) -> dict[str, Any]:
-        if not os.path.isfile(input_data.file_path):
-            raise FileNotFoundError(f"File not found: {input_data.file_path}")
+        if not os.path.isfile(input_data.input_file_path):
+            raise FileNotFoundError(f"File not found: {input_data.input_file_path}")
 
-        _, ext = os.path.splitext(input_data.file_path)
+        _, ext = os.path.splitext(input_data.input_file_path)
         ext = ext.lower().replace(".", "")
         assert ext in ["mp3", "wav"], f"Expected mp3 or wav extension, but got {ext}"
 
         try:
-            with open(input_data.file_path, "rb") as audio_file:
+            with open(input_data.input_file_path, "rb") as audio_file:
                 audio_bytes = audio_file.read()
             audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
         except Exception as e:
-            raise RuntimeError(f"Failed reading audio file '{input_data.file_path}': {e}") from e
+            raise RuntimeError(f"Failed reading audio file '{input_data.input_file_path}': {e}") from e
 
         client = AsyncOpenAI()
         user_content: list[ChatCompletionContentPartParam] = []
@@ -339,7 +346,7 @@ async def transcribe_with_llm(
             )
             return {"text": completion.choices[0].message.content}
         except Exception as e:
-            raise RuntimeError(f"GPT-4 processing failed for {input_data.file_path}: {e}") from e
+            raise RuntimeError(f"GPT-4 processing failed for {input_data.input_file_path}: {e}") from e
 
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
@@ -378,7 +385,7 @@ async def transcribe_with_enhancement(
                 await transcribe_with_llm(
                     [
                         TranscribeWithLLMInputParams(
-                            file_path=input_data.file_path,
+                            input_file_path=input_data.input_file_path,
                             text_prompt=enhancement_prompts[input_data.enhancement_type],
                             model=input_data.model,
                         )
