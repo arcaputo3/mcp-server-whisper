@@ -3,6 +3,8 @@
 import asyncio
 import base64
 import os
+from io import BytesIO
+from pathlib import Path
 from typing import Any, Literal, Optional, cast
 
 import aiofiles
@@ -13,21 +15,40 @@ from openai.types.chat import ChatCompletionContentPartParam
 from pydantic import BaseModel, Field
 from pydub import AudioSegment  # type: ignore
 
+# Literals for transcription
 SupportedAudioFormat = Literal["mp3", "wav"]
 AudioLLM = Literal["gpt-4o-audio-preview-2024-10-01"]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
+
+# Constants for checks
+WHISPER_AUDIO_FORMATS = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
+GPT_4O_AUDIO_FORMATS = {".mp3", ".wav"}
+
+# Enhancement prompts
+ENHANCEMENT_PROMPTS: dict[EnhancementType, str] = {
+    "detailed": "Please transcribe this audio and include details about tone of voice, emotional undertones, "
+    "and any background elements you notice. Make it rich and descriptive.",
+    "storytelling": "Transform this audio into an engaging narrative. "
+    "Maintain the core message but present it as a story.",
+    "professional": "Transcribe this audio and format it in a professional, business-appropriate manner. "
+    "Clean up any verbal fillers and structure it clearly.",
+    "analytical": "Transcribe this audio and analyze the speech patterns, key discussion points, "
+    "and overall structure. Include observations about delivery and organization.",
+}
 
 
 class BaseInputPath(BaseModel):
     """Base file path input."""
 
-    input_file_path: str
+    input_file_path: Path
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class BaseAudioInputParams(BaseInputPath):
     """Base params for converting audio to mp3."""
 
-    output_file_path: Optional[str] = None
+    output_file_path: Optional[Path] = None
 
 
 class ConvertAudioInputParams(BaseAudioInputParams):
@@ -61,40 +82,62 @@ class TranscribeWithEnhancementInputParams(BaseInputPath):
     enhancement_type: EnhancementType = "detailed"
     model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
 
+    def to_transcribe_with_llm_input_params(self) -> TranscribeWithLLMInputParams:
+        """Transfer audio with LLM using custom prompt."""
+        return TranscribeWithLLMInputParams(
+            input_file_path=self.input_file_path,
+            text_prompt=ENHANCEMENT_PROMPTS[self.enhancement_type],
+            model=self.model,
+        )
+
 
 class FilePathSupportParams(BaseModel):
     """Params for checking if a file at a path supports transcription."""
 
-    file_path: str
+    file_path: Path
     transcription_support: Optional[list[AudioModel]] = None
     llm_support: Optional[list[AudioLLM]] = None
     modified_time: float
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 mcp = FastMCP("whisper", dependencies=["openai", "pydub", "aiofiles"])
 
 
-def get_audio_file_support(file_path: str) -> FilePathSupportParams:
+def check_and_get_audio_path() -> Path:
+    """Check if the audio path environment variable is set and exists."""
+    audio_path_str = os.getenv("AUDIO_FILES_PATH")
+    if not audio_path_str:
+        raise ValueError("AUDIO_FILES_PATH environment variable not set")
+
+    audio_path = Path(audio_path_str).resolve()
+    if not audio_path.exists():
+        raise ValueError(f"Audio path does not exist: {audio_path}")
+    return audio_path
+
+
+def get_audio_file_support(file_path: Path) -> FilePathSupportParams:
     """Determine audio transcription file format support."""
-    whisper_formats = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
-    gpt4o_formats = {".mp3", ".wav"}
+    file_ext = file_path.suffix.lower()
 
-    file_ext = os.path.splitext(file_path.lower())[1]
-
-    transcription_support: list[AudioModel] | None = ["whisper-1"] if file_ext in whisper_formats else None
+    transcription_support: list[AudioModel] | None = ["whisper-1"] if file_ext in WHISPER_AUDIO_FORMATS else None
     llm_support: list[Literal["gpt-4o-audio-preview-2024-10-01"]] | None = (
-        ["gpt-4o-audio-preview-2024-10-01"] if file_ext in gpt4o_formats else None
+        ["gpt-4o-audio-preview-2024-10-01"] if file_ext in GPT_4O_AUDIO_FORMATS else None
     )
 
     return FilePathSupportParams(
         file_path=file_path,
         transcription_support=transcription_support,
         llm_support=llm_support,
-        modified_time=os.path.getmtime(file_path),
+        modified_time=file_path.stat().st_mtime,
     )
 
 
-@mcp.tool()
+@mcp.tool(
+    description="Get the most recent audio file from the audio path. "
+    "ONLY USE THIS IF THE USER ASKS FOR THE LATEST FILE."
+)
 async def get_latest_audio() -> FilePathSupportParams:
     """Get the most recently modified audio file and returns its path with model support info.
 
@@ -102,20 +145,17 @@ async def get_latest_audio() -> FilePathSupportParams:
     - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
     - GPT-4o: mp3, wav
     """
-    audio_path = os.getenv("AUDIO_FILES_PATH")
-    if not audio_path:
-        raise ValueError("AUDIO_FILES_PATH environment variable not set")
-
-    whisper_formats = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
-    gpt4o_formats = {".mp3", ".wav"}
+    audio_path = check_and_get_audio_path()
 
     try:
         files = []
-        for file in os.listdir(audio_path):
-            file_ext = os.path.splitext(file.lower())[1]
-            if file_ext in whisper_formats or file_ext in gpt4o_formats:
-                full_path = os.path.abspath(os.path.join(audio_path, file))
-                files.append((full_path, os.path.getmtime(full_path)))
+        for file_path in audio_path.iterdir():
+            if not file_path.is_file():
+                continue
+
+            file_ext = file_path.suffix.lower()
+            if file_ext in WHISPER_AUDIO_FORMATS or file_ext in GPT_4O_AUDIO_FORMATS:
+                files.append((file_path, file_path.stat().st_mtime))
 
         if not files:
             raise RuntimeError("No supported audio files found")
@@ -127,7 +167,7 @@ async def get_latest_audio() -> FilePathSupportParams:
         raise RuntimeError(f"Failed to get latest audio file: {e}") from e
 
 
-@mcp.resource("dir://audio")
+@mcp.resource("dir://audio", description="List audio files from the audio path.")
 def list_audio_files() -> list[FilePathSupportParams]:
     """List all audio files in the AUDIO_FILES_PATH directory with format support info.
 
@@ -135,92 +175,92 @@ def list_audio_files() -> list[FilePathSupportParams]:
     - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
     - GPT-4o: mp3, wav
     """
-    audio_path = os.getenv("AUDIO_FILES_PATH")
-    if not audio_path:
-        raise ValueError("AUDIO_FILES_PATH environment variable not set")
-
-    whisper_formats = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
-    gpt4o_formats = {".mp3", ".wav"}
+    audio_path = check_and_get_audio_path()
 
     try:
         files = []
-        for file in os.listdir(audio_path):
-            file_ext = os.path.splitext(file.lower())[1]
-            if file_ext in whisper_formats or file_ext in gpt4o_formats:
-                abs_path = os.path.abspath(os.path.join(audio_path, file))
-                files.append(get_audio_file_support(abs_path))
+        for file_path in audio_path.iterdir():
+            if not file_path.is_file():
+                continue
 
-        return sorted(files, key=lambda x: x.file_path)
+            file_ext = file_path.suffix.lower()
+            if file_ext in WHISPER_AUDIO_FORMATS or file_ext in WHISPER_AUDIO_FORMATS:
+                files.append(get_audio_file_support(file_path))
+
+        return sorted(files, key=lambda x: str(x.file_path))
 
     except Exception as e:
         raise RuntimeError(f"Failed to list audio files: {e}") from e
 
 
 async def convert_to_supported_format(
-    input_file: str,
-    output_path: str | None = None,
+    input_file: Path,
+    output_path: Path | None = None,
     target_format: SupportedAudioFormat = "mp3",
-) -> str:
+) -> Path:
     """Async version of audio file conversion using pydub.
 
     Ensures the output filename is base + .{target_format} if no output_path provided.
     """
     if output_path is None:
-        base, ext = os.path.splitext(input_file)
-        output_path = base + f".{target_format}"
+        output_path = input_file.with_suffix(f".{target_format}")
 
     try:
         # Load audio file directly from path instead of reading bytes first
         audio = await asyncio.to_thread(
             AudioSegment.from_file,
-            input_file,
-            format=os.path.splitext(input_file)[1][1:],
+            str(input_file),  # pydub expects a string path
+            format=input_file.suffix[1:],  # remove the leading dot
         )
 
-        await asyncio.to_thread(audio.export, output_path, format=target_format, parameters=["-ac", "2"])
+        await asyncio.to_thread(
+            audio.export,
+            str(output_path),  # pydub expects a string path
+            format=target_format,
+            parameters=["-ac", "2"],
+        )
         return output_path
     except Exception as e:
         raise RuntimeError(f"Audio conversion failed: {str(e)}")
 
 
-async def compress_mp3_file(mp3_file_path: str, output_path: str | None = None, out_sample_rate: int = 11025) -> str:
+async def compress_mp3_file(mp3_file_path: Path, output_path: Path | None = None, out_sample_rate: int = 11025) -> Path:
     """Downsample an existing mp3.
 
     If no output_path provided, returns a file named 'compressed_{original_stem}.mp3'.
     """
-    if not mp3_file_path.lower().endswith(".mp3"):
-        raise Exception("compress_mp3_file() called on a file that is not .mp3")
+    if mp3_file_path.suffix.lower() != ".mp3":
+        raise ValueError("compress_mp3_file() called on a file that is not .mp3")
 
     if output_path is None:
-        basename = os.path.basename(mp3_file_path)
-        name_no_ext, _ = os.path.splitext(basename)
-        output_path = f"compressed_{name_no_ext}.mp3"
+        output_path = mp3_file_path.parent / f"compressed_{mp3_file_path.stem}.mp3"
 
     print(f"\n[Compression] Original file: {mp3_file_path}")
     print(f"[Compression] Output file:   {output_path}")
 
     try:
         # Load audio file directly from path instead of reading bytes first
-        audio_file = await asyncio.to_thread(AudioSegment.from_file, mp3_file_path, format="mp3")
+        audio_file = await asyncio.to_thread(AudioSegment.from_file, str(mp3_file_path), format="mp3")
         original_frame_rate = audio_file.frame_rate
         print(f"[Compression] Original frame rate: {original_frame_rate}, converting to {out_sample_rate}.")
         await asyncio.to_thread(
             audio_file.export,
-            output_path,
+            str(output_path),
             format="mp3",
             parameters=["-ar", str(out_sample_rate)],
         )
         return output_path
     except Exception as e:
-        raise Exception(f"Error compressing mp3 file: {str(e)}")
+        raise RuntimeError(f"Error compressing mp3 file: {str(e)}")
 
 
-async def maybe_compress_file(input_file: str, output_path: str | None = None, max_mb: int = 25) -> str:
+async def maybe_compress_file(input_file: Path, output_path: Path | None = None, max_mb: int = 25) -> Path:
     """Compress file if is above {max_mb} and convert to mp3 if needed.
 
     If no output_path provided, returns the compressed_{stem}.mp3 path if compression happens,
     otherwise returns the original path.
     """
+    # Use aiofiles to read file size asynchronously
     async with aiofiles.open(input_file, "rb") as f:
         file_size = len(await f.read())
     threshold_bytes = max_mb * 1024 * 1024
@@ -231,29 +271,30 @@ async def maybe_compress_file(input_file: str, output_path: str | None = None, m
     print(f"\n[maybe_compress_file] File '{input_file}' size > {max_mb}MB. Attempting compression...")
 
     # If not mp3, convert
-    if not input_file.lower().endswith(".mp3"):
+    if input_file.suffix.lower() != ".mp3":
         try:
             input_file = await convert_to_supported_format(input_file, None, "mp3")
         except Exception as e:
-            raise Exception(f"[maybe_compress_file] Error converting to MP3: {str(e)}")
+            raise RuntimeError(f"[maybe_compress_file] Error converting to MP3: {str(e)}")
 
     # now downsample
     try:
         compressed_path = await compress_mp3_file(input_file, output_path, 11025)
     except Exception as e:
-        raise Exception(f"[maybe_compress_file] Error compressing MP3 file: {str(e)}")
+        raise RuntimeError(f"[maybe_compress_file] Error compressing MP3 file: {str(e)}")
 
+    # Use aiofiles to read compressed file size asynchronously
     async with aiofiles.open(compressed_path, "rb") as f:
         new_size = len(await f.read())
     print(f"[maybe_compress_file] Compressed file size: {new_size} bytes")
     return compressed_path
 
 
-@mcp.tool()
-async def convert_audio(inputs: list[ConvertAudioInputParams]) -> list[dict[str, str]]:
+@mcp.tool(description="A tool used to convert audio files to mp3 or wav which are gpt-4o compatible.")
+async def convert_audio(inputs: list[ConvertAudioInputParams]) -> list[dict[str, Path]]:
     """Convert multiple audio files to supported formats (mp3 or wav) in parallel."""
 
-    async def process_single(input_data: ConvertAudioInputParams) -> dict[str, str]:
+    async def process_single(input_data: ConvertAudioInputParams) -> dict[str, Path]:
         try:
             output_file = await convert_to_supported_format(
                 input_data.input_file_path, input_data.output_file_path, input_data.target_format
@@ -265,11 +306,14 @@ async def convert_audio(inputs: list[ConvertAudioInputParams]) -> list[dict[str,
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
-@mcp.tool()
-async def compress_audio(inputs: list[CompressAudioInputParams]) -> list[dict[str, str]]:
+@mcp.tool(
+    description="A tool used to compress audio files which are >25mb. "
+    "ONLY USE THIS IF THE USER REQUESTS COMPRESSION OR IF OTHER TOOLS FAIL DUE TO FILES BEING TOO LARGE."
+)
+async def compress_audio(inputs: list[CompressAudioInputParams]) -> list[dict[str, Path]]:
     """Compress multiple audio files in parallel if they're larger than max_mb."""
 
-    async def process_single(input_data: CompressAudioInputParams) -> dict[str, str]:
+    async def process_single(input_data: CompressAudioInputParams) -> dict[str, Path]:
         try:
             output_file = await maybe_compress_file(
                 input_data.input_file_path, input_data.output_file_path, input_data.max_mb
@@ -289,19 +333,28 @@ async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dic
     """
 
     async def process_single(input_data: TranscribeAudioInputParams) -> dict[str, Any]:
-        if not os.path.isfile(input_data.input_file_path):
-            raise FileNotFoundError(f"File not found: {input_data.input_file_path}")
+        file_path = input_data.input_file_path
+        if not file_path.exists() or not file_path.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
 
         client = AsyncOpenAI()
 
         try:
-            with open(input_data.input_file_path, "rb") as audio_file:
-                transcript = await client.audio.transcriptions.create(
-                    model=input_data.model, file=audio_file, response_format="text"
-                )
+            # Use aiofiles to read the audio file asynchronously
+            async with aiofiles.open(file_path, "rb") as audio_file:
+                file_content = await audio_file.read()
+
+            # Create a file-like object from bytes for OpenAI API
+
+            file_obj = BytesIO(file_content)
+            file_obj.name = file_path.name  # OpenAI API needs a filename
+
+            transcript = await client.audio.transcriptions.create(
+                model=input_data.model, file=file_obj, response_format="text"
+            )
             return {"text": transcript}
         except Exception as e:
-            raise RuntimeError(f"Whisper processing failed for {input_data.input_file_path}: {e}") from e
+            raise RuntimeError(f"Whisper processing failed for {file_path}: {e}") from e
 
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
@@ -313,19 +366,20 @@ async def transcribe_with_llm(
     """Transcribe multiple audio files using GPT-4 with optional text prompts in parallel."""
 
     async def process_single(input_data: TranscribeWithLLMInputParams) -> dict[str, Any]:
-        if not os.path.isfile(input_data.input_file_path):
-            raise FileNotFoundError(f"File not found: {input_data.input_file_path}")
+        file_path = input_data.input_file_path
+        if not file_path.exists() or not file_path.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
 
-        _, ext = os.path.splitext(input_data.input_file_path)
-        ext = ext.lower().replace(".", "")
+        ext = file_path.suffix.lower().replace(".", "")
         assert ext in ["mp3", "wav"], f"Expected mp3 or wav extension, but got {ext}"
 
         try:
-            with open(input_data.input_file_path, "rb") as audio_file:
-                audio_bytes = audio_file.read()
+            # Use aiofiles to read the audio file asynchronously
+            async with aiofiles.open(file_path, "rb") as audio_file:
+                audio_bytes = await audio_file.read()
             audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
         except Exception as e:
-            raise RuntimeError(f"Failed reading audio file '{input_data.input_file_path}': {e}") from e
+            raise RuntimeError(f"Failed reading audio file '{file_path}': {e}") from e
 
         client = AsyncOpenAI()
         user_content: list[ChatCompletionContentPartParam] = []
@@ -363,38 +417,7 @@ async def transcribe_with_enhancement(
     - professional: Formats the transcription in a formal, business-appropriate way
     - analytical: Includes analysis of speech patterns, key points, and structure
     """
-    enhancement_prompts = {
-        "detailed": "Please transcribe this audio and include details about tone of voice, emotional undertones, "
-        "and any background elements you notice. Make it rich and descriptive.",
-        "storytelling": "Transform this audio into an engaging narrative. "
-        "Maintain the core message but present it as a story.",
-        "professional": "Transcribe this audio and format it in a professional, business-appropriate manner. "
-        "Clean up any verbal fillers and structure it clearly.",
-        "analytical": "Transcribe this audio and analyze the speech patterns, key discussion points, "
-        "and overall structure. Include observations about delivery and organization.",
-    }
-
-    async def process_single(
-        input_data: TranscribeWithEnhancementInputParams,
-    ) -> dict[str, Any]:
-        if input_data.enhancement_type not in enhancement_prompts:
-            raise ValueError(f"Invalid enhancement_type. Must be one of: {', '.join(enhancement_prompts.keys())}")
-
-        return next(
-            (
-                await transcribe_with_llm(
-                    [
-                        TranscribeWithLLMInputParams(
-                            input_file_path=input_data.input_file_path,
-                            text_prompt=enhancement_prompts[input_data.enhancement_type],
-                            model=input_data.model,
-                        )
-                    ]
-                )
-            )
-        )
-
-    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
+    return await transcribe_with_llm([input_.to_transcribe_with_llm_input_params() for input_ in inputs])
 
 
 def main() -> None:
