@@ -3,6 +3,9 @@
 import asyncio
 import base64
 import os
+import re
+from enum import Enum
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal, Optional, cast
@@ -98,6 +101,9 @@ class FilePathSupportParams(BaseModel):
     transcription_support: Optional[list[AudioModel]] = None
     llm_support: Optional[list[AudioLLM]] = None
     modified_time: float
+    size_bytes: int
+    format: str
+    duration_seconds: Optional[float] = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -117,8 +123,11 @@ def check_and_get_audio_path() -> Path:
     return audio_path
 
 
-def get_audio_file_support(file_path: Path) -> FilePathSupportParams:
-    """Determine audio transcription file format support."""
+async def get_audio_file_support(file_path: Path) -> FilePathSupportParams:
+    """Determine audio transcription file format support and metadata.
+
+    Includes file size, format, and duration information where available.
+    """
     file_ext = file_path.suffix.lower()
 
     transcription_support: list[AudioModel] | None = ["whisper-1"] if file_ext in WHISPER_AUDIO_FORMATS else None
@@ -126,11 +135,36 @@ def get_audio_file_support(file_path: Path) -> FilePathSupportParams:
         ["gpt-4o-audio-preview-2024-10-01"] if file_ext in GPT_4O_AUDIO_FORMATS else None
     )
 
+    # Get file stats
+    file_stats = file_path.stat()
+
+    # Get file size using aiofiles
+    async with aiofiles.open(file_path, "rb") as f:
+        file_content = await f.read()
+    size_bytes = len(file_content)
+
+    # Get audio format (remove the dot from extension)
+    audio_format = file_ext[1:] if file_ext.startswith(".") else file_ext
+
+    # Get duration if possible (could be expensive for large files)
+    duration_seconds = None
+    try:
+        # Load just the metadata to get duration
+        audio = await asyncio.to_thread(AudioSegment.from_file, str(file_path), format=audio_format)
+        # Convert from milliseconds to seconds
+        duration_seconds = len(audio) / 1000.0
+    except Exception:
+        # If we can't get duration, just continue without it
+        pass
+
     return FilePathSupportParams(
         file_path=file_path,
         transcription_support=transcription_support,
         llm_support=llm_support,
-        modified_time=file_path.stat().st_mtime,
+        modified_time=file_stats.st_mtime,
+        size_bytes=size_bytes,
+        format=audio_format,
+        duration_seconds=duration_seconds,
     )
 
 
@@ -144,6 +178,8 @@ async def get_latest_audio() -> FilePathSupportParams:
     Supported formats:
     - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
     - GPT-4o: mp3, wav
+
+    Returns detailed file information including size, format, and duration.
     """
     audio_path = check_and_get_audio_path()
 
@@ -161,36 +197,185 @@ async def get_latest_audio() -> FilePathSupportParams:
             raise RuntimeError("No supported audio files found")
 
         latest_file = max(files, key=lambda x: x[1])[0]
-        return get_audio_file_support(latest_file)
+        return await get_audio_file_support(latest_file)
 
     except Exception as e:
         raise RuntimeError(f"Failed to get latest audio file: {e}") from e
 
 
-@mcp.resource("dir://audio", description="List audio files from the audio path.")
-def list_audio_files() -> list[FilePathSupportParams]:
-    """List all audio files in the AUDIO_FILES_PATH directory with format support info.
+@lru_cache(maxsize=32)
+async def _get_cached_audio_file_support(file_path: str, _mtime: float) -> FilePathSupportParams:
+    """Cache audio file support information using path and mtime as key.
+
+    Uses the file path and modified time as cache key.
+    """
+    return await get_audio_file_support(Path(file_path))
+
+
+class SortBy(str, Enum):
+    """Sorting options for audio files."""
+
+    NAME = "name"
+    SIZE = "size"
+    DURATION = "duration"
+    MODIFIED_TIME = "modified_time"
+    FORMAT = "format"
+
+
+class ListAudioFilesInputParams(BaseModel):
+    """Input parameters for the list_audio_files tool."""
+
+    pattern: Optional[str] = None
+    """Optional regex pattern to filter audio files by name"""
+
+    min_size_bytes: Optional[int] = None
+    """Minimum file size in bytes"""
+
+    max_size_bytes: Optional[int] = None
+    """Maximum file size in bytes"""
+
+    min_duration_seconds: Optional[float] = None
+    """Minimum audio duration in seconds"""
+
+    max_duration_seconds: Optional[float] = None
+    """Maximum audio duration in seconds"""
+
+    min_modified_time: Optional[float] = None
+    """Minimum file modification time (Unix timestamp)"""
+
+    max_modified_time: Optional[float] = None
+    """Maximum file modification time (Unix timestamp)"""
+
+    format: Optional[str] = None
+    """Specific audio format to filter by (e.g., 'mp3', 'wav')"""
+
+    sort_by: SortBy = SortBy.NAME
+    """Field to sort results by"""
+
+    reverse: bool = False
+    """Sort in reverse order if True"""
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
+@mcp.tool(
+    description="List, filter, and sort audio files from the audio path. Supports regex pattern matching, "
+    "filtering by metadata (size, duration, date, format), and sorting."
+)
+async def list_audio_files(inputs: list[ListAudioFilesInputParams]) -> list[list[FilePathSupportParams]]:
+    """List, filter, and sort audio files in the AUDIO_FILES_PATH directory with comprehensive options.
 
     Supported formats:
     - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
     - GPT-4o: mp3, wav
+
+    Filtering options:
+    - pattern: Regex pattern for file name/path matching
+    - min/max_size_bytes: File size range in bytes
+    - min/max_duration_seconds: Audio duration range in seconds
+    - min/max_modified_time: File modification time range (Unix timestamps)
+    - format: Specific audio format (e.g., 'mp3', 'wav')
+
+    Sorting options:
+    - sort_by: Field to sort by (name, size, duration, modified_time, format)
+    - reverse: Set to true for descending order
+
+    Returns detailed file information including size, format, duration, and transcription capabilities.
     """
-    audio_path = check_and_get_audio_path()
 
-    try:
-        files = []
-        for file_path in audio_path.iterdir():
-            if not file_path.is_file():
-                continue
+    async def process_single(input_data: ListAudioFilesInputParams) -> list[FilePathSupportParams]:
+        audio_path = check_and_get_audio_path()
 
-            file_ext = file_path.suffix.lower()
-            if file_ext in WHISPER_AUDIO_FORMATS or file_ext in WHISPER_AUDIO_FORMATS:
-                files.append(get_audio_file_support(file_path))
+        try:
+            # Store file paths that match our criteria
+            file_paths = []
 
-        return sorted(files, key=lambda x: str(x.file_path))
+            # First, collect all valid file paths
+            for file_path in audio_path.iterdir():
+                if not file_path.is_file():
+                    continue
 
-    except Exception as e:
-        raise RuntimeError(f"Failed to list audio files: {e}") from e
+                file_ext = file_path.suffix.lower()
+                if file_ext in WHISPER_AUDIO_FORMATS or file_ext in GPT_4O_AUDIO_FORMATS:
+                    # Apply regex pattern filtering if provided
+                    if input_data.pattern and not re.search(input_data.pattern, str(file_path)):
+                        continue
+
+                    # Apply format filtering if provided
+                    if input_data.format and file_ext[1:].lower() != input_data.format.lower():
+                        continue
+
+                    # For other filters, we need file metadata, so add to initial list
+                    file_paths.append(file_path)
+
+            # Process all files in parallel with async gather
+            # We pass both the path and modification time to the cache function
+            cache_tasks = []
+            for path in file_paths:
+                # Convert Path to string for caching purposes
+                path_str = str(path)
+                mtime = path.stat().st_mtime
+                cache_tasks.append(_get_cached_audio_file_support(path_str, mtime))
+
+            # Gather all the results
+            file_support_results = await asyncio.gather(*cache_tasks)
+
+            # Apply post-metadata filters
+            filtered_results = []
+            for file_info in file_support_results:
+                # Apply size filters
+                if input_data.min_size_bytes is not None and file_info.size_bytes < input_data.min_size_bytes:
+                    continue
+                if input_data.max_size_bytes is not None and file_info.size_bytes > input_data.max_size_bytes:
+                    continue
+
+                # Apply duration filters if duration is available
+                if file_info.duration_seconds is not None:
+                    if (
+                        input_data.min_duration_seconds is not None
+                        and file_info.duration_seconds < input_data.min_duration_seconds
+                    ):
+                        continue
+                    if (
+                        input_data.max_duration_seconds is not None
+                        and file_info.duration_seconds > input_data.max_duration_seconds
+                    ):
+                        continue
+                # Skip duration filtering if duration info isn't available
+
+                # Apply modification time filters
+                if input_data.min_modified_time is not None and file_info.modified_time < input_data.min_modified_time:
+                    continue
+                if input_data.max_modified_time is not None and file_info.modified_time > input_data.max_modified_time:
+                    continue
+
+                # If it passed all filters, add to results
+                filtered_results.append(file_info)
+
+            # Sort files according to the requested sort field
+            if input_data.sort_by == SortBy.NAME:
+                return sorted(filtered_results, key=lambda x: str(x.file_path), reverse=input_data.reverse)
+            elif input_data.sort_by == SortBy.SIZE:
+                return sorted(filtered_results, key=lambda x: x.size_bytes, reverse=input_data.reverse)
+            elif input_data.sort_by == SortBy.DURATION:
+                # Use 0 for files with no duration to keep them at the beginning
+                return sorted(
+                    filtered_results,
+                    key=lambda x: x.duration_seconds if x.duration_seconds is not None else 0,
+                    reverse=input_data.reverse
+                )
+            elif input_data.sort_by == SortBy.MODIFIED_TIME:
+                return sorted(filtered_results, key=lambda x: x.modified_time, reverse=input_data.reverse)
+            elif input_data.sort_by == SortBy.FORMAT:
+                return sorted(filtered_results, key=lambda x: x.format, reverse=input_data.reverse)
+            else:
+                # Default to sorting by name
+                return sorted(filtered_results, key=lambda x: str(x.file_path), reverse=input_data.reverse)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to list audio files: {e}") from e
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 async def convert_to_supported_format(

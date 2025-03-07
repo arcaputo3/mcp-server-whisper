@@ -1,5 +1,5 @@
 version = 1
-requires-python = ">=3.10, <=3.11"
+requires-python = ">=3.10, <3.12"
 
 [[package]]
 name = "aiofiles"
@@ -105,7 +105,7 @@ wheels = [
 
 [package.optional-dependencies]
 toml = [
-    { name = "tomli" },
+    { name = "tomli", marker = "python_full_version <= '3.11'" },
 ]
 
 [[package]]
