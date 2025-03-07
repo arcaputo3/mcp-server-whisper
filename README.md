@@ -1,4 +1,4 @@
-# MCP Server Whisper <™
+# MCP Server Whisper
 
 A Model Context Protocol (MCP) server for advanced audio transcription and processing using OpenAI's Whisper and GPT-4o models.
 
@@ -10,11 +10,11 @@ A Model Context Protocol (MCP) server for advanced audio transcription and proce
 MCP Server Whisper provides a standardized way to process audio files through OpenAI's transcription services. By implementing the [Model Context Protocol](https://modelcontextprotocol.io/), it enables AI assistants like Claude to seamlessly interact with audio processing capabilities.
 
 Key features:
-- = Automatic audio file detection and format validation
-- =Ê Parallel batch processing for multiple audio files
-- = Format conversion between supported audio types
-- =É Automatic compression for oversized files
-- <¯ Enhanced transcription with specialized prompts
+- Automatic audio file detection and format validation
+- Parallel batch processing for multiple audio files
+- Format conversion between supported audio types
+- Automatic compression for oversized files
+- Enhanced transcription with specialized prompts
 
 ## Installation
 
