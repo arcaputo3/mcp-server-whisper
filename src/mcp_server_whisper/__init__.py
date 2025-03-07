@@ -1,0 +1,1 @@
+"""Whisper MCP server package."""
