@@ -1,60 +1,45 @@
 [project]
 name = "mcp-server-whisper"
-version = "0.1.0"
+version = "0.1.1"
 description = "An MCP server for transcribing audio files using OpenAI Whisper and GPT-4o"
-authors = [
-    {name = "Richie Caputo", email = "rcaputo3@tjclp.com"}
-]
 readme = "README.md"
-license = {text = "MIT"}
-requires-python = ">=3.10,<3.12"  # pydub breaks in Python 3.12
-dependencies = [
-    "aiofiles",
-    "dotenv",
-    "ffmpeg-python",
-    "mcp[cli]",
-    "openai",
-    "pydub",
-]
+requires-python = ">=3.10,<3.12"
+dependencies = [ "aiofiles", "dotenv", "ffmpeg-python", "mcp[cli]", "openai", "pydub",]
+[[project.authors]]
+name = "Richie Caputo"
+email = "rcaputo3@tjclp.com"
+
+[dependency-groups]
+dev = [ "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov", "ruff", "toml", "types-aiofiles",]
+
+[build-system]
+requires = [ "hatchling",]
+build-backend = "hatchling.build"
+
+[project.license]
+text = "MIT"
 
 [project.urls]
-"Homepage" = "https://github.com/arcaputo3/mcp-server-whisper"
+Homepage = "https://github.com/arcaputo3/mcp-server-whisper"
 "Bug Tracker" = "https://github.com/arcaputo3/mcp-server-whisper/issues"
 
 [project.scripts]
 server = "mcp_server_whisper.server:main"
 
-[dependency-groups]
-dev = [
-    "mypy",
-    "pre-commit",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-    "ruff",
-    "toml",
-    "types-aiofiles",
-]
-
 [tool.ruff]
 line-length = 120
-lint.select = ["E", "F", "I", "D", "W"]
-lint.fixable = ["I", "E", "W"]
 
 [tool.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint]
+select = [ "E", "F", "I", "D", "W",]
+fixable = [ "I", "E", "W",]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-filterwarnings = [
-    "ignore:Unused async fixture loop scope:pytest.PytestWarning"
-]
-
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+filterwarnings = [ "ignore:Unused async fixture loop scope:pytest.PytestWarning",]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcp_server_whisper"]
+packages = [ "src/mcp_server_whisper",]
