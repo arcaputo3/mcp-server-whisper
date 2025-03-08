@@ -197,9 +197,7 @@ git push origin v0.1.1
 
 ## How It Works
 
-<div align="center">
-<img src="https://github.com/arcaputo3/mcp-server-whisper/raw/main/docs/architecture.png" alt="MCP Server Whisper Architecture" width="600">
-</div>
+For detailed architecture information, see [Architecture Documentation](docs/architecture.md).
 
 MCP Server Whisper is built on the Model Context Protocol, which standardizes how AI models interact with external tools and data sources. The server:
 
