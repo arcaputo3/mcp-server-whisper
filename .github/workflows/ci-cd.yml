@@ -1,0 +1,132 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, mcp-experimental]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          cache: true
+          cache-keyfile: pyproject.toml
+          
+      - name: Install dependencies
+        run: |
+          uv pip install --editable ".[dev]"
+          
+      - name: Lint with Ruff
+        run: uv run ruff check src tests
+        
+      - name: Type checking with MyPy
+        run: uv run mypy src tests
+        
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          cache: true
+          cache-keyfile: pyproject.toml
+          
+      - name: Install dependencies
+        run: |
+          uv pip install --editable ".[dev]"
+          
+      - name: Test with pytest
+        run: uv run pytest --cov=src --cov-report=xml
+        
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          cache: true
+          
+      - name: Build package with uv
+        run: uv build
+        
+      - name: Store distribution packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+          
+  pypi-publish:
+    name: Deploy to PyPI
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mcp-server-whisper
+    permissions:
+      id-token: write  # OIDC authentication
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v1
+      
+      - name: Download distribution packages
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+      
+      - name: Publish to PyPI with uv
+        env:
+          PYPI_PUBLISHER_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          uv publish --repository pypi dist/*
