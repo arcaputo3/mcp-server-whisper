@@ -25,7 +25,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          uv pip install --editable ".[dev]"
+          uv sync
           
       - name: Lint with Ruff
         run: uv run ruff check src tests
@@ -52,7 +52,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          uv pip install --editable ".[dev]"
+          uv sync
           
       - name: Test with pytest
         run: uv run pytest --cov=src --cov-report=xml

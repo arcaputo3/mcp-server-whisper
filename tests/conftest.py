@@ -6,20 +6,11 @@ from typing import List, Tuple
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
-from _pytest.tmpdir import TempPathFactory
 
 
 @pytest.fixture
 def mock_audio_path(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
-    """Mock audio path environment variable and create test directory.
-    
-    Args:
-        monkeypatch: Pytest fixture to patch environment variables
-        tmp_path: Pytest fixture providing a temporary directory path
-        
-    Returns:
-        Path to the mock audio directory
-    """
+    """Mock audio path environment variable and create test directory."""
     # Create a temporary directory for audio files
     audio_path = tmp_path / "audio"
     audio_path.mkdir()
@@ -32,14 +23,7 @@ def mock_audio_path(monkeypatch: MonkeyPatch, tmp_path: Path) -> Path:
 
 @pytest.fixture
 def sample_audio_files(mock_audio_path: Path) -> List[Tuple[Path, int, int]]:
-    """Create sample audio files for testing.
-    
-    Args:
-        mock_audio_path: Fixture providing path to mock audio directory
-        
-    Returns:
-        List of tuples containing (file_path, size_bytes, modified_time)
-    """
+    """Create sample audio files for testing."""
     # Create a few test files with different formats
     files = [
         ("test1.mp3", 1000, 100),  # name, size, mtime
