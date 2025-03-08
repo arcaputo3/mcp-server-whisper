@@ -1,5 +1,3 @@
-Got it! I'll research how to send audio files directly as user input in a chat setting with GPT-4o. This includes checking if OpenAI's API supports direct audio input in `ChatCompletion.create()` or whether audio must first be transcribed and then passed as text. I'll also look for the correct syntax and parameters for submitting audio in a conversation format. I'll update you once I have the findings.
-
 # Sending Audio Files to OpenAI's GPT-4 ChatCompletion API (GPT-4o)
 
 OpenAI’s **GPT-4o** model (the audio-enabled GPT-4 preview) allows you to include audio in your chat conversations. Below, we address each part of your question with references to official documentation and announcements:

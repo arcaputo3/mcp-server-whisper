@@ -1,0 +1,105 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_part:
+        description: 'Part of version to bump (major, minor, patch)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Git
+        run: |
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+          
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv pip install toml
+
+      - name: Bump version
+        id: bump_version
+        run: |
+          python -c '
+          import toml
+          import sys
+          import re
+          
+          # Read the current version
+          with open("pyproject.toml", "r") as f:
+              data = toml.load(f)
+          
+          current_version = data["project"]["version"]
+          print(f"Current version: {current_version}")
+          
+          # Parse the version
+          major, minor, patch = map(int, current_version.split("."))
+          
+          # Bump the version
+          if "${{ github.event.inputs.version_part }}" == "major":
+              major += 1
+              minor = 0
+              patch = 0
+          elif "${{ github.event.inputs.version_part }}" == "minor":
+              minor += 1
+              patch = 0
+          else:  # patch
+              patch += 1
+          
+          new_version = f"{major}.{minor}.{patch}"
+          print(f"New version: {new_version}")
+          
+          # Update the version in pyproject.toml
+          data["project"]["version"] = new_version
+          with open("pyproject.toml", "w") as f:
+              toml.dump(data, f)
+          
+          # Output the new version for use in subsequent steps
+          with open(sys.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"version={new_version}\n")
+          '
+
+      - name: Commit and Push changes
+        run: |
+          git add pyproject.toml
+          git commit -m "Bump version to ${{ steps.bump_version.outputs.version }}"
+          git push origin HEAD
+
+      - name: Create Tag
+        run: |
+          git tag -a v${{ steps.bump_version.outputs.version }} -m "Release v${{ steps.bump_version.outputs.version }}"
+          git push origin v${{ steps.bump_version.outputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump_version.outputs.version }}
+          name: Release v${{ steps.bump_version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
