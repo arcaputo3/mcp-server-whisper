@@ -39,12 +39,11 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync
-          uv pip install toml
 
       - name: Bump version
         id: bump_version
         run: |
-          python -c '
+          uv run python -c '
           import toml
           import sys
           import re
