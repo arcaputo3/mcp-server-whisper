@@ -362,7 +362,7 @@ async def list_audio_files(inputs: list[ListAudioFilesInputParams]) -> list[list
                 return sorted(
                     filtered_results,
                     key=lambda x: x.duration_seconds if x.duration_seconds is not None else 0,
-                    reverse=input_data.reverse
+                    reverse=input_data.reverse,
                 )
             elif input_data.sort_by == SortBy.MODIFIED_TIME:
                 return sorted(filtered_results, key=lambda x: x.modified_time, reverse=input_data.reverse)
@@ -602,7 +602,9 @@ async def transcribe_with_enhancement(
     - professional: Formats the transcription in a formal, business-appropriate way
     - analytical: Includes analysis of speech patterns, key points, and structure
     """
-    return await transcribe_with_llm([input_.to_transcribe_with_llm_input_params() for input_ in inputs])
+    converted_inputs = [input_.to_transcribe_with_llm_input_params() for input_ in inputs]
+    result: list[dict[str, Any]] = await transcribe_with_llm(converted_inputs)
+    return result
 
 
 def main() -> None:
