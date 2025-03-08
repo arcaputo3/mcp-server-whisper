@@ -45,19 +45,20 @@ jobs:
         run: |
           uv run python -c '
           import toml
+          import os  # Add os import
           import sys
           import re
-          
+
           # Read the current version
           with open("pyproject.toml", "r") as f:
               data = toml.load(f)
-          
+
           current_version = data["project"]["version"]
           print(f"Current version: {current_version}")
-          
+
           # Parse the version
           major, minor, patch = map(int, current_version.split("."))
-          
+
           # Bump the version
           if "${{ github.event.inputs.version_part }}" == "major":
               major += 1
@@ -68,20 +69,19 @@ jobs:
               patch = 0
           else:  # patch
               patch += 1
-          
+
           new_version = f"{major}.{minor}.{patch}"
           print(f"New version: {new_version}")
-          
+
           # Update the version in pyproject.toml
           data["project"]["version"] = new_version
           with open("pyproject.toml", "w") as f:
               toml.dump(data, f)
-          
+
           # Output the new version for use in subsequent steps
-          with open(sys.environ["GITHUB_OUTPUT"], "a") as f:
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:  # Change to os.environ
               f.write(f"version={new_version}\n")
           '
-
       - name: Commit and Push changes
         run: |
           git add pyproject.toml
