@@ -1,7 +1,5 @@
 """Test audio file listing and filtering capabilities."""
 
-from typing import Optional
-
 import pytest
 
 from mcp_server_whisper.server import (

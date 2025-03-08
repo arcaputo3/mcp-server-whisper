@@ -1,7 +1,5 @@
 """Test the whisper server functionality."""
 
-from typing import Optional
-
 from mcp_server_whisper.server import ListAudioFilesInputParams, SortBy
 
 
