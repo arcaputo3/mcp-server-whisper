@@ -85,6 +85,11 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:  # Change to os.environ
               f.write(f"version={new_version}\n")
           '
+
+      - name: Lock update
+        run: |
+          uv lock
+
       - name: Commit and Push changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
