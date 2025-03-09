@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.10, <3.12"
 
 [[package]]
@@ -320,7 +321,7 @@ cli = [
 
 [[package]]
 name = "mcp-server-whisper"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
