@@ -24,7 +24,7 @@ Homepage = "https://github.com/arcaputo3/mcp-server-whisper"
 "Bug Tracker" = "https://github.com/arcaputo3/mcp-server-whisper/issues"
 
 [project.scripts]
-server = "mcp_server_whisper.server:main"
+mcp-server-whisper = "mcp_server_whisper:main"
 
 [tool.ruff]
 line-length = 120
