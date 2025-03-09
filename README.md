@@ -151,6 +151,43 @@ Claude will:
 3. Return all transcriptions in a well-formatted output
 </details>
 
+## Configuration with Claude Desktop
+
+Add this to your `claude_desktop_config.json`:
+
+### UVX
+
+```json 
+{
+  "mcpServers": {
+    "whisper": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "aiofiles",
+        "--with",
+        "mcp[cli]",
+        "--with",
+        "openai",
+        "--with",
+        "pydub",
+        "mcp-server-whisper"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "your_openai_api_key",
+        "AUDIO_FILES_PATH": "/path/to/your/audio/files"
+      }
+    }
+  }
+}
+```
+
+### Recommendation (Mac OS Only)
+
+- Install [Screen Recorder By Omi](https://apps.apple.com/us/app/screen-recorder-by-omi/id1592987853?mt=12) (free)
+- Set `AUDIO_FILES_PATH` to `/Users/<user>/Movies/Omi Screen Recorder` and replace `<user>` with your username
+- As you record audio with the app, you can transcribe large batches directly with Claude
+
 ## Development
 
 This project uses modern Python development tools including `uv`, `pytest`, `ruff`, and `mypy`.
