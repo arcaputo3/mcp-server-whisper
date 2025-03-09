@@ -40,6 +40,3 @@ fixable = [ "I", "E", "W",]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [ "ignore:Unused async fixture loop scope:pytest.PytestWarning",]
-
-[tool.hatch.build.targets.wheel]
-packages = [ "src/mcp_server_whisper",]
