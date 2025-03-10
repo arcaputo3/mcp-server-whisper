@@ -1,4 +1,4 @@
-name: Create Release
+name: Create & Publish Release
 
 on:
   workflow_dispatch:
@@ -19,6 +19,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump_version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -105,6 +107,9 @@ jobs:
           git tag -a v${{ steps.bump_version.outputs.version }} -m "Release v${{ steps.bump_version.outputs.version }}"
           git push origin v${{ steps.bump_version.outputs.version }}
 
+      - name: Build package
+        run: uv build
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -114,3 +119,34 @@ jobs:
           prerelease: false
           generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
+          
+  pypi-publish:
+    name: Upload Release to PyPI
+    needs: [release]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mcp-server-whisper
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for Trusted Publishing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.version }}
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+          
+      - name: Build package
+        run: uv build
+      
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

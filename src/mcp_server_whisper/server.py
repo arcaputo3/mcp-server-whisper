@@ -4,6 +4,7 @@ import asyncio
 import base64
 import os
 import re
+import time
 from enum import Enum
 from functools import lru_cache
 from io import BytesIO
@@ -22,6 +23,8 @@ from pydub import AudioSegment  # type: ignore
 SupportedAudioFormat = Literal["mp3", "wav"]
 AudioLLM = Literal["gpt-4o-audio-preview-2024-10-01"]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
+TTSModel = Literal["tts-1", "tts-1-hd"]
+TTSVoice = Literal["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
 
 # Constants for checks
 WHISPER_AUDIO_FORMATS = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
@@ -92,6 +95,24 @@ class TranscribeWithEnhancementInputParams(BaseInputPath):
             text_prompt=ENHANCEMENT_PROMPTS[self.enhancement_type],
             model=self.model,
         )
+
+
+class CreateClaudecastInputParams(BaseModel):
+    """Params for text-to-speech using OpenAI's API."""
+
+    text_prompt: str
+    """Text to convert to speech"""
+
+    output_file_path: Optional[Path] = None
+    """Output file path (defaults to speech.mp3 in current directory)"""
+
+    model: TTSModel = "tts-1-hd"
+    """TTS model to use"""
+
+    voice: TTSVoice = "nova"
+    """Voice for the TTS"""
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class FilePathSupportParams(BaseModel):
@@ -605,6 +626,54 @@ async def transcribe_with_enhancement(
     converted_inputs = [input_.to_transcribe_with_llm_input_params() for input_ in inputs]
     result: list[dict[str, Any]] = await transcribe_with_llm(converted_inputs)
     return result
+
+
+@mcp.tool(description="Create text-to-speech audio using OpenAI's TTS API with model and voice selection.")
+async def create_claudecast(
+    inputs: list[CreateClaudecastInputParams],
+) -> list[dict[str, Path]]:
+    """Generate text-to-speech audio files from text prompts with customizable voices.
+
+    Options:
+    - model: Choose between tts-1 (faster, lower quality) or tts-1-hd (higher quality)
+    - voice: Select from multiple voice options (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)
+    - text_prompt: The text content to convert to speech
+    - output_file_path: Optional custom path for the output file (defaults to speech.mp3)
+
+    Returns the path to the generated audio file.
+    """
+
+    async def process_single(input_data: CreateClaudecastInputParams) -> dict[str, Path]:
+        try:
+            # Set default output path if not provided
+            output_path = input_data.output_file_path
+            if output_path is None:
+                # Create output directory if it doesn't exist
+                audio_path = check_and_get_audio_path()
+                output_path = audio_path / f"speech_{time.time_ns()}.mp3"
+
+            # Ensure parent directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            client = AsyncOpenAI()
+
+            # Create speech file
+            response = await client.audio.speech.create(
+                model=input_data.model,
+                voice=input_data.voice,
+                input=input_data.text_prompt,
+            )
+            # Stream to file using aiofiles for async IO
+            audio_bytes = await response.aread()
+            async with aiofiles.open(output_path, "wb") as file:
+                await file.write(audio_bytes)
+
+            return {"output_path": output_path}
+
+        except Exception as e:
+            raise RuntimeError(f"Text-to-speech generation failed: {str(e)}") from e
+
+    return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
 def main() -> None:

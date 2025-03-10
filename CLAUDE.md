@@ -1,12 +1,12 @@
 # MCP Server Whisper - Development Guidelines
 
 ## Commands
-- Run tests: `pytest`
-- Run single test: `pytest tests/path_to_test.py::test_function_name -v`
-- Run with coverage: `pytest --cov=src`
-- Type checking: `mypy src`
-- Linting: `ruff check src`
-- Format code: `ruff format src`
+- Run tests: `uv run pytest`
+- Run single test: `uv run pytest tests/path_to_test.py::test_function_name -v`
+- Run with coverage: `uv run pytest --cov=src`
+- Type checking: `uv run mypy src`
+- Linting: `uv run ruff check src`
+- Format code: `uv run ruff format src`
 - Run MCP server: `mcp dev src/mcp_server_whisper/server.py`
 - Install MCP server: `mcp install src/mcp_server_whisper/server.py`
 - Setup pre-commit: `pre-commit install`
