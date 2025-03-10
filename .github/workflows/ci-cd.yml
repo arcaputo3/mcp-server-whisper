@@ -2,9 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, mcp-experimental]
-    tags:
-      - 'v*'
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -62,63 +60,3 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
-          
-  build:
-    name: Build Package
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-          
-      - name: Build package with uv
-        run: uv build
-        
-      - name: Store distribution packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
-          
-  pypi-publish:
-    name: Deploy to PyPI
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/v')
-    environment:
-      name: pypi
-      url: https://pypi.org/p/mcp-server-whisper
-    permissions:
-      id-token: write  # OIDC authentication
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-      
-      - name: Download distribution packages
-        uses: actions/download-artifact@v3
-        with:
-          name: python-package-distributions
-          path: dist/
-      
-      - name: Publish to PyPI with uv
-        env:
-          PYPI_PUBLISHER_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          uv publish --repository pypi dist/*

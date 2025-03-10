@@ -21,6 +21,7 @@ Key features:
 - 🔄 **Format conversion** between supported audio types
 - 📦 **Automatic compression** for oversized files
 - ✏️ **Enhanced transcription** with specialized prompts
+- 🎙️ **Text-to-speech generation** with customizable voices and models
 - 📊 **Comprehensive metadata** including duration, file size, and format support
 - 🚀 **High-performance caching** for repeated operations
 
@@ -31,16 +32,11 @@ Key features:
 git clone https://github.com/arcaputo3/mcp-server-whisper.git
 cd mcp-server-whisper
 
-# Using uv (recommended)
-uv sync -e .
-uv sync -e ".[dev]"  # For development dependencies
-
-# Using pip
-pip install -e .
-pip install -e ".[dev]"  # For development dependencies
+# Using uv 
+uv sync
 
 # Set up pre-commit hooks
-pre-commit install
+uv run pre-commit install
 ```
 
 ## Environment Setup
@@ -65,7 +61,7 @@ mcp dev src/mcp_server_whisper/server.py
 To install the server for use with Claude Desktop or other MCP clients:
 
 ```bash
-mcp install src/mcp_server_whisper/server.py
+mcp install src/mcp_server_whisper/server.py [--env-file .env]
 ```
 
 ### Exposed MCP Tools
@@ -93,6 +89,13 @@ mcp install src/mcp_server_whisper/server.py
   - `storytelling` - Transforms the transcript into a narrative form
   - `professional` - Creates formal, business-appropriate transcriptions
   - `analytical` - Adds analysis of speech patterns and key points
+
+#### Text-to-Speech
+
+- `create_claudecast` - Generate text-to-speech audio using OpenAI's TTS API:
+  - Supports different models (`tts-1`, `tts-1-hd`)
+  - Multiple voice options (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)
+  - Customizable output file paths
 
 ## Supported Audio Formats
 
@@ -149,6 +152,22 @@ Claude will:
 2. Process all matching files in parallel using `transcribe_with_enhancement`
    - `enhancement_type: "professional"`
 3. Return all transcriptions in a well-formatted output
+</details>
+
+<details>
+<summary>Generating Text-to-Speech with Claudecast</summary>
+
+```
+Claude, create a claudecast with this script: "Welcome to our podcast! Today we'll be discussing artificial intelligence trends in 2025." Use the shimmer voice.
+```
+
+Claude will:
+1. Use the `create_claudecast` tool with:
+   - `text_prompt` containing the script
+   - `voice: "shimmer"`
+   - `model: "tts-1-hd"` (default high-quality model)
+2. Generate the audio file and save it to the configured audio directory
+3. Provide the path to the generated audio file
 </details>
 
 ## Configuration with Claude Desktop
