@@ -641,6 +641,7 @@ def split_text_for_tts(text: str, max_length: int = 4000) -> list[str]:
 
     Returns:
         List of text chunks, each below the maximum length
+
     """
     # If text is already under the limit, return it as a single chunk
     if len(text) <= max_length:
