@@ -96,6 +96,7 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
   - Supports different models (`tts-1`, `tts-1-hd`)
   - Multiple voice options (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)
   - Customizable output file paths
+  - Handles texts of any length by automatically splitting and joining audio segments
 
 ## Supported Audio Formats
 

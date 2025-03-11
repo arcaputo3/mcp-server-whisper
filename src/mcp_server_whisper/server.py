@@ -628,6 +628,65 @@ async def transcribe_with_enhancement(
     return result
 
 
+def split_text_for_tts(text: str, max_length: int = 4000) -> list[str]:
+    """Split text into chunks that don't exceed the TTS API limit.
+
+    The function splits text at sentence boundaries (periods, question marks, exclamation points)
+    to create natural-sounding chunks. If a sentence is too long, it falls back to
+    splitting at commas, then spaces.
+
+    Args:
+        text: The text to split
+        max_length: Maximum character length for each chunk (default 4000 to provide buffer)
+
+    Returns:
+        List of text chunks, each below the maximum length
+    """
+    # If text is already under the limit, return it as a single chunk
+    if len(text) <= max_length:
+        return [text]
+
+    chunks = []
+    remaining_text = text
+
+    # Define boundary markers in order of preference
+    sentence_boundaries = [". ", "? ", "! ", ".\n", "?\n", "!\n"]
+    secondary_boundaries = [", ", ";\n", ";\n", ":\n", "\n", " "]
+
+    while len(remaining_text) > max_length:
+        # Try to find the best split point starting from max_length and working backward
+        split_index = -1
+
+        # First try sentence boundaries (most preferred)
+        for boundary in sentence_boundaries:
+            last_boundary = remaining_text[:max_length].rfind(boundary)
+            if last_boundary != -1:
+                split_index = last_boundary + len(boundary)
+                break
+
+        # If no sentence boundary found, try secondary boundaries
+        if split_index == -1:
+            for boundary in secondary_boundaries:
+                last_boundary = remaining_text[:max_length].rfind(boundary)
+                if last_boundary != -1:
+                    split_index = last_boundary + len(boundary)
+                    break
+
+        # If still no boundary found, just cut at max_length (least preferred)
+        if split_index == -1 or split_index == 0:
+            split_index = max_length
+
+        # Add the chunk and update remaining text
+        chunks.append(remaining_text[:split_index])
+        remaining_text = remaining_text[split_index:]
+
+    # Add any remaining text as the final chunk
+    if remaining_text:
+        chunks.append(remaining_text)
+
+    return chunks
+
+
 @mcp.tool(description="Create text-to-speech audio using OpenAI's TTS API with model and voice selection.")
 async def create_claudecast(
     inputs: list[CreateClaudecastInputParams],
@@ -637,10 +696,13 @@ async def create_claudecast(
     Options:
     - model: Choose between tts-1 (faster, lower quality) or tts-1-hd (higher quality)
     - voice: Select from multiple voice options (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)
-    - text_prompt: The text content to convert to speech
+    - text_prompt: The text content to convert to speech (supports any length; automatically splits long text)
     - output_file_path: Optional custom path for the output file (defaults to speech.mp3)
 
     Returns the path to the generated audio file.
+
+    Note: Handles texts of any length by splitting into chunks at natural boundaries and
+    concatenating the audio. OpenAI's TTS API has a limit of 4096 characters per request.
     """
 
     async def process_single(input_data: CreateClaudecastInputParams) -> dict[str, Path]:
@@ -657,16 +719,63 @@ async def create_claudecast(
 
             client = AsyncOpenAI()
 
-            # Create speech file
-            response = await client.audio.speech.create(
-                model=input_data.model,
-                voice=input_data.voice,
-                input=input_data.text_prompt,
-            )
-            # Stream to file using aiofiles for async IO
-            audio_bytes = await response.aread()
-            async with aiofiles.open(output_path, "wb") as file:
-                await file.write(audio_bytes)
+            # Split text if it exceeds the API limit (with buffer)
+            text_chunks = split_text_for_tts(input_data.text_prompt)
+
+            if len(text_chunks) == 1:
+                # For single chunk, process directly
+                response = await client.audio.speech.create(
+                    model=input_data.model,
+                    voice=input_data.voice,
+                    input=text_chunks[0],
+                )
+
+                # Stream to file using aiofiles for async IO
+                audio_bytes = await response.aread()
+                async with aiofiles.open(output_path, "wb") as file:
+                    await file.write(audio_bytes)
+
+            else:
+                # For multiple chunks, process in parallel and concatenate
+                print(f"Text exceeds TTS API limit, splitting into {len(text_chunks)} chunks")
+
+                # Create temporary directory for chunk files
+                import tempfile
+
+                temp_dir = Path(tempfile.mkdtemp())
+
+                # Process each chunk in parallel
+                async def process_chunk(chunk_text: str, chunk_index: int) -> Path:
+                    chunk_path = temp_dir / f"chunk_{chunk_index}.mp3"
+
+                    response = await client.audio.speech.create(
+                        model=input_data.model,
+                        voice=input_data.voice,
+                        input=chunk_text,
+                    )
+
+                    audio_bytes = await response.aread()
+                    async with aiofiles.open(chunk_path, "wb") as file:
+                        await file.write(audio_bytes)
+
+                    return chunk_path
+
+                # Process all chunks concurrently
+                chunk_paths = await asyncio.gather(*[process_chunk(chunk, i) for i, chunk in enumerate(text_chunks)])
+
+                # Concatenate audio files using pydub
+                combined = AudioSegment.empty()
+                for chunk_path in chunk_paths:
+                    segment = await asyncio.to_thread(AudioSegment.from_mp3, str(chunk_path))
+                    combined += segment
+
+                # Export the final combined audio
+                await asyncio.to_thread(combined.export, str(output_path), format="mp3")
+
+                # Clean up temporary files
+                for chunk_path in chunk_paths:
+                    chunk_path.unlink(missing_ok=True)
+                temp_dir.rmdir()
 
             return {"output_path": output_path}
 
