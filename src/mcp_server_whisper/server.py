@@ -15,7 +15,6 @@ import aiofiles
 from mcp.server.fastmcp import FastMCP
 from openai import AsyncOpenAI
 from openai.types import AudioModel, AudioResponseFormat
-from openai._types import NotGiven
 from openai.types.audio.speech_model import SpeechModel
 from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
 from pydantic import BaseModel, Field
