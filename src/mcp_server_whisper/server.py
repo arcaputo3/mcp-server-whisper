@@ -15,6 +15,7 @@ import aiofiles
 from mcp.server.fastmcp import FastMCP
 from openai import AsyncOpenAI
 from openai.types import AudioModel, AudioResponseFormat
+from openai._types import NotGiven
 from openai.types.audio.speech_model import SpeechModel
 from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
 from pydantic import BaseModel, Field
@@ -643,15 +644,15 @@ async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dic
 
             file_obj = BytesIO(file_content)
             file_obj.name = file_path.name  # OpenAI API needs a filename
+            transcriptions_create_input = {
+                k: v for k, v in input_data.model_dump(exclude_none=True).items() if k != "input_file_path"
+            }
 
-            transcript = await client.audio.transcriptions.create(
-                model=input_data.model,
-                file=file_obj,
-                prompt=input_data.prompt,
-                response_format=input_data.response_format,
-                timestamp_granularities=input_data.timestamp_granularities,
-            )
+            transcript = await client.audio.transcriptions.create(file=file_obj, **transcriptions_create_input)
+            if isinstance(transcript, BaseModel):
+                return transcript.model_dump()
             return {"text": transcript}
+
         except Exception as e:
             raise RuntimeError(f"Whisper processing failed for {file_path}: {e}") from e
 
@@ -823,15 +824,15 @@ async def create_claudecast(
             # Split text if it exceeds the API limit (with buffer)
             text_chunks = split_text_for_tts(input_data.text_prompt)
 
+            speech_create_input = {
+                k: v
+                for k, v in input_data.model_dump(exclude_none=True).items()
+                if k not in ["output_file_path", "text_prompt"]
+            }
+
             if len(text_chunks) == 1:
                 # For single chunk, process directly
-                response = await client.audio.speech.create(
-                    model=input_data.model,
-                    voice=input_data.voice,
-                    input=text_chunks[0],
-                    instructions=input_data.instructions,
-                    speed=input_data.speed,
-                )
+                response = await client.audio.speech.create(input=text_chunks[0], **speech_create_input)
 
                 # Stream to file using aiofiles for async IO
                 audio_bytes = await response.aread()
@@ -850,14 +851,7 @@ async def create_claudecast(
                 # Process each chunk in parallel
                 async def process_chunk(chunk_text: str, chunk_index: int) -> Path:
                     chunk_path = temp_dir / f"chunk_{chunk_index}.mp3"
-
-                    response = await client.audio.speech.create(
-                        model=input_data.model,
-                        voice=input_data.voice,
-                        input=chunk_text,
-                        instructions=input_data.instructions,
-                        speed=input_data.speed,
-                    )
+                    response = await client.audio.speech.create(input=chunk_text, **speech_create_input)
 
                     audio_bytes = await response.aread()
                     async with aiofiles.open(chunk_path, "wb") as file:
