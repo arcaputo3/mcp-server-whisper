@@ -14,39 +14,58 @@ from typing import Any, Literal, Optional, cast
 import aiofiles
 from mcp.server.fastmcp import FastMCP
 from openai import AsyncOpenAI
-from openai.types import AudioModel
-from openai.types.chat import ChatCompletionContentPartParam
+from openai.types import AudioModel, AudioResponseFormat
+from openai.types.audio.speech_model import SpeechModel
+from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 from pydub import AudioSegment  # type: ignore
 
 # Literals for transcription
-SupportedAudioFormat = Literal["mp3", "wav"]
-AudioLLM = Literal["gpt-4o-audio-preview-2024-10-01"]
+SupportedChatWithAudioFormat = Literal["mp3", "wav"]
+AudioChatModel = Literal[
+    "gpt-4o-audio-preview-2024-10-01", "gpt-4o-audio-preview-2024-12-17", "gpt-4o-mini-audio-preview-2024-12-17"
+]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
-TTSModel = Literal["tts-1", "tts-1-hd"]
 TTSVoice = Literal["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
 
 # Constants for checks
-WHISPER_AUDIO_FORMATS = {".mp3", ".wav", ".mp4", ".mpeg", ".mpga", ".m4a", ".webm"}
-GPT_4O_AUDIO_FORMATS = {".mp3", ".wav"}
+TRANSCRIBE_AUDIO_FORMATS = {
+    ".flac",  # Added FLAC support
+    ".mp3",
+    ".mp4",
+    ".mpeg",
+    ".mpga",
+    ".m4a",
+    ".ogg",  # Added OGG support
+    ".wav",
+    ".webm",
+}
+CHAT_WITH_AUDIO_FORMATS = {".mp3", ".wav"}
 
 # Enhancement prompts
 ENHANCEMENT_PROMPTS: dict[EnhancementType, str] = {
-    "detailed": "Please transcribe this audio and include details about tone of voice, emotional undertones, "
-    "and any background elements you notice. Make it rich and descriptive.",
-    "storytelling": "Transform this audio into an engaging narrative. "
-    "Maintain the core message but present it as a story.",
-    "professional": "Transcribe this audio and format it in a professional, business-appropriate manner. "
-    "Clean up any verbal fillers and structure it clearly.",
-    "analytical": "Transcribe this audio and analyze the speech patterns, key discussion points, "
-    "and overall structure. Include observations about delivery and organization.",
+    "detailed": "The following is a detailed transcript that includes all verbal and non-verbal elements. "
+    "Background noises are noted in [brackets]. Speech characteristics like [pause], [laughs], and [sighs] "
+    "are preserved. Filler words like 'um', 'uh', 'like', and 'you know' are included. "
+    "Hello... [deep breath] Let me explain what I mean by that. [background noise] You know, it's like...",
+    "storytelling": "The following is a natural conversation with proper punctuation and flow. "
+    "Each speaker's words are captured in a new paragraph with emotional context preserved. "
+    "Hello! I'm excited to share this story with you. It began on a warm summer morning...",
+    "professional": "The following is a clear, professional transcript with proper capitalization and punctuation. "
+    "Each sentence is complete and properly structured. Technical terms and acronyms are preserved exactly. "
+    "Welcome to today's presentation on the Q4 financial results. Our KPIs show significant growth.",
+    "analytical": "The following is a precise technical transcript that preserves speech patterns and terminology. "
+    "Note changes in speaking pace, emphasis, and technical terms exactly as spoken. "
+    "Preserve specialized vocabulary, acronyms, and technical jargon with high fidelity. "
+    "Example: The API endpoint /v1/completions [spoken slowly] accepts JSON payloads "
+    "with a maximum token count of 4096 [emphasis on numbers].",
 }
 
 
 class BaseInputPath(BaseModel):
     """Base file path input."""
 
-    input_file_path: Path
+    input_file_path: Path = Field(description="Path to the input audio file to process")
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -54,63 +73,131 @@ class BaseInputPath(BaseModel):
 class BaseAudioInputParams(BaseInputPath):
     """Base params for converting audio to mp3."""
 
-    output_file_path: Optional[Path] = None
+    output_file_path: Optional[Path] = Field(
+        default=None,
+        description="Optional custom path for the output file. "
+        "If not provided, defaults to input_file_path with appropriate extension",
+    )
 
 
 class ConvertAudioInputParams(BaseAudioInputParams):
     """Params for converting audio to mp3."""
 
-    target_format: SupportedAudioFormat = "mp3"
+    target_format: SupportedChatWithAudioFormat = Field(
+        default="mp3", description="Target audio format to convert to (mp3 or wav)"
+    )
 
 
 class CompressAudioInputParams(BaseAudioInputParams):
     """Params for compressing audio."""
 
-    max_mb: int = Field(default=25, gt=0)
+    max_mb: int = Field(
+        default=25, gt=0, description="Maximum file size in MB. Files larger than this will be compressed"
+    )
 
 
-class TranscribeAudioInputParams(BaseInputPath):
+class TranscribeAudioInputParamsBase(BaseInputPath):
     """Params for transcribing audio with audio-to-text model."""
 
-    model: AudioModel = "whisper-1"
+    model: AudioModel = Field(
+        default="gpt-4o-mini-transcribe",
+        description="The transcription model to use (e.g., 'whisper-1', 'gpt-4o-transcribe', 'gpt-4o-mini-transcribe')",
+    )
+    response_format: AudioResponseFormat = Field(
+        "text",
+        description="The response format of the transcription model. "
+        'Use `verbose_json` with `model="whisper-1"` for timestamps. '
+        "`gpt-4o-transcribe` and `gpt-4o-mini-transcribe` only support `text` and `json`.",
+    )
+    timestamp_granularities: list[Literal["word", "segment"]] | None = Field(
+        None,
+        description="""The timestamp granularities to populate for this transcription.
+`response_format` must be set `verbose_json` to use timestamp granularities.
+Either or both of these options are supported: `word`, or `segment`.
+Note: There is no additional latency for segment timestamps, but generating word timestamp incurs additional latency.
+""",
+    )
 
 
-class TranscribeWithLLMInputParams(BaseInputPath):
+class TranscribeAudioInputParams(TranscribeAudioInputParamsBase):
+    """Params for transcribing audio with audio-to-text model."""
+
+    prompt: str | None = Field(
+        None,
+        description="""An optional prompt to guide the transcription model's output. Effective prompts can:
+
+        1. Correct specific words/acronyms: Include technical terms or names that might be misrecognized
+           Example: "The transcript discusses OpenAI's DALL·E and GPT-4 technology"
+
+        2. Maintain context from previous segments: Include the last part of previous transcript
+           Note: Model only considers final 224 tokens of the prompt
+
+        3. Enforce punctuation: Include properly punctuated example text
+           Example: "Hello, welcome to my lecture. Today, we'll discuss..."
+
+        4. Preserve filler words: Include example with verbal hesitations
+           Example: "Umm, let me think like, hmm... Okay, here's what I'm thinking"
+
+        5. Set writing style: Use examples in desired format (simplified/traditional, formal/casual)
+
+        The model will try to match the style and formatting of your prompt.""",
+    )
+
+
+class ChatWithAudioInputParams(BaseInputPath):
     """Params for transcribing audio with LLM using custom prompt."""
 
-    text_prompt: Optional[str] = None
-    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
+    system_prompt: Optional[str] = Field(default=None, description="Custom system prompt to use.")
+    user_prompt: Optional[str] = Field(default=None, description="Custom user prompt to use.")
+    model: AudioChatModel = Field(
+        default="gpt-4o-audio-preview-2024-12-17", description="The audio LLM model to use for transcription"
+    )
 
 
-class TranscribeWithEnhancementInputParams(BaseInputPath):
+class TranscribeWithEnhancementInputParams(TranscribeAudioInputParamsBase):
     """Params for transcribing audio with LLM using template prompt."""
 
-    enhancement_type: EnhancementType = "detailed"
-    model: AudioLLM = "gpt-4o-audio-preview-2024-10-01"
+    enhancement_type: EnhancementType = Field(
+        default="detailed",
+        description="Type of enhancement to apply to the transcription: "
+        "detailed, storytelling, professional, or analytical.",
+    )
 
-    def to_transcribe_with_llm_input_params(self) -> TranscribeWithLLMInputParams:
+    def to_transcribe_audio_input_params(self) -> TranscribeAudioInputParams:
         """Transfer audio with LLM using custom prompt."""
-        return TranscribeWithLLMInputParams(
+        return TranscribeAudioInputParams(
             input_file_path=self.input_file_path,
-            text_prompt=ENHANCEMENT_PROMPTS[self.enhancement_type],
+            prompt=ENHANCEMENT_PROMPTS[self.enhancement_type],
             model=self.model,
+            timestamp_granularities=self.timestamp_granularities,
+            response_format=self.response_format,
         )
 
 
 class CreateClaudecastInputParams(BaseModel):
     """Params for text-to-speech using OpenAI's API."""
 
-    text_prompt: str
-    """Text to convert to speech"""
-
-    output_file_path: Optional[Path] = None
-    """Output file path (defaults to speech.mp3 in current directory)"""
-
-    model: TTSModel = "tts-1-hd"
-    """TTS model to use"""
-
-    voice: TTSVoice = "nova"
-    """Voice for the TTS"""
+    text_prompt: str = Field(description="Text to convert to speech")
+    output_file_path: Optional[Path] = Field(
+        default=None, description="Output file path (defaults to speech.mp3 in current directory)"
+    )
+    model: SpeechModel = Field(
+        default="gpt-4o-mini-tts", description="TTS model to use. gpt-4o-mini-tts is always preferred."
+    )
+    voice: TTSVoice = Field(
+        default="nova",
+        description="Voice for the TTS (options: alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)",
+    )
+    instructions: str | None = Field(
+        default=None,
+        description="Optional instructions for the speech conversion, such as tonality, accent, style, etc.",
+    )
+    speed: float = Field(
+        default=1.0,
+        gt=0.25,
+        lt=4.0,
+        description="Speed of the speech conversion. Use if the user prompts slow or fast speech.",
+    )
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -118,13 +205,19 @@ class CreateClaudecastInputParams(BaseModel):
 class FilePathSupportParams(BaseModel):
     """Params for checking if a file at a path supports transcription."""
 
-    file_path: Path
-    transcription_support: Optional[list[AudioModel]] = None
-    llm_support: Optional[list[AudioLLM]] = None
-    modified_time: float
-    size_bytes: int
-    format: str
-    duration_seconds: Optional[float] = None
+    file_path: Path = Field(description="Path to the audio file")
+    transcription_support: Optional[list[AudioModel]] = Field(
+        default=None, description="List of transcription models that support this file format"
+    )
+    chat_support: Optional[list[AudioChatModel]] = Field(
+        default=None, description="List of audio LLM models that support this file format"
+    )
+    modified_time: float = Field(description="Last modified timestamp of the file (Unix time)")
+    size_bytes: int = Field(description="Size of the file in bytes")
+    format: str = Field(description="Audio format of the file (e.g., 'mp3', 'wav')")
+    duration_seconds: Optional[float] = Field(
+        default=None, description="Duration of the audio file in seconds, if available"
+    )
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -151,9 +244,13 @@ async def get_audio_file_support(file_path: Path) -> FilePathSupportParams:
     """
     file_ext = file_path.suffix.lower()
 
-    transcription_support: list[AudioModel] | None = ["whisper-1"] if file_ext in WHISPER_AUDIO_FORMATS else None
-    llm_support: list[Literal["gpt-4o-audio-preview-2024-10-01"]] | None = (
-        ["gpt-4o-audio-preview-2024-10-01"] if file_ext in GPT_4O_AUDIO_FORMATS else None
+    transcription_support: list[AudioModel] | None = (
+        ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"] if file_ext in TRANSCRIBE_AUDIO_FORMATS else None
+    )
+    chat_support: list[AudioChatModel] | None = (
+        ["gpt-4o-audio-preview-2024-10-01", "gpt-4o-audio-preview-2024-12-17", "gpt-4o-mini-audio-preview-2024-12-17"]
+        if file_ext in CHAT_WITH_AUDIO_FORMATS
+        else None
     )
 
     # Get file stats
@@ -181,7 +278,7 @@ async def get_audio_file_support(file_path: Path) -> FilePathSupportParams:
     return FilePathSupportParams(
         file_path=file_path,
         transcription_support=transcription_support,
-        llm_support=llm_support,
+        chat_support=chat_support,
         modified_time=file_stats.st_mtime,
         size_bytes=size_bytes,
         format=audio_format,
@@ -211,7 +308,7 @@ async def get_latest_audio() -> FilePathSupportParams:
                 continue
 
             file_ext = file_path.suffix.lower()
-            if file_ext in WHISPER_AUDIO_FORMATS or file_ext in GPT_4O_AUDIO_FORMATS:
+            if file_ext in TRANSCRIBE_AUDIO_FORMATS or file_ext in CHAT_WITH_AUDIO_FORMATS:
                 files.append((file_path, file_path.stat().st_mtime))
 
         if not files:
@@ -246,35 +343,22 @@ class SortBy(str, Enum):
 class ListAudioFilesInputParams(BaseModel):
     """Input parameters for the list_audio_files tool."""
 
-    pattern: Optional[str] = None
-    """Optional regex pattern to filter audio files by name"""
-
-    min_size_bytes: Optional[int] = None
-    """Minimum file size in bytes"""
-
-    max_size_bytes: Optional[int] = None
-    """Maximum file size in bytes"""
-
-    min_duration_seconds: Optional[float] = None
-    """Minimum audio duration in seconds"""
-
-    max_duration_seconds: Optional[float] = None
-    """Maximum audio duration in seconds"""
-
-    min_modified_time: Optional[float] = None
-    """Minimum file modification time (Unix timestamp)"""
-
-    max_modified_time: Optional[float] = None
-    """Maximum file modification time (Unix timestamp)"""
-
-    format: Optional[str] = None
-    """Specific audio format to filter by (e.g., 'mp3', 'wav')"""
-
-    sort_by: SortBy = SortBy.NAME
-    """Field to sort results by"""
-
-    reverse: bool = False
-    """Sort in reverse order if True"""
+    pattern: Optional[str] = Field(default=None, description="Optional regex pattern to filter audio files by name")
+    min_size_bytes: Optional[int] = Field(default=None, description="Minimum file size in bytes")
+    max_size_bytes: Optional[int] = Field(default=None, description="Maximum file size in bytes")
+    min_duration_seconds: Optional[float] = Field(default=None, description="Minimum audio duration in seconds")
+    max_duration_seconds: Optional[float] = Field(default=None, description="Maximum audio duration in seconds")
+    min_modified_time: Optional[float] = Field(
+        default=None, description="Minimum file modification time (Unix timestamp)"
+    )
+    max_modified_time: Optional[float] = Field(
+        default=None, description="Maximum file modification time (Unix timestamp)"
+    )
+    format: Optional[str] = Field(default=None, description="Specific audio format to filter by (e.g., 'mp3', 'wav')")
+    sort_by: SortBy = Field(
+        default=SortBy.NAME, description="Field to sort results by (name, size, duration, modified_time, format)"
+    )
+    reverse: bool = Field(default=False, description="Sort in reverse order if True")
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -287,8 +371,8 @@ async def list_audio_files(inputs: list[ListAudioFilesInputParams]) -> list[list
     """List, filter, and sort audio files in the AUDIO_FILES_PATH directory with comprehensive options.
 
     Supported formats:
-    - Whisper: mp3, mp4, mpeg, mpga, m4a, wav, webm
-    - GPT-4o: mp3, wav
+    - Transcribe: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, or webm
+    - Chat: mp3, wav
 
     Filtering options:
     - pattern: Regex pattern for file name/path matching
@@ -317,7 +401,7 @@ async def list_audio_files(inputs: list[ListAudioFilesInputParams]) -> list[list
                     continue
 
                 file_ext = file_path.suffix.lower()
-                if file_ext in WHISPER_AUDIO_FORMATS or file_ext in GPT_4O_AUDIO_FORMATS:
+                if file_ext in TRANSCRIBE_AUDIO_FORMATS or file_ext in CHAT_WITH_AUDIO_FORMATS:
                     # Apply regex pattern filtering if provided
                     if input_data.pattern and not re.search(input_data.pattern, str(file_path)):
                         continue
@@ -402,7 +486,7 @@ async def list_audio_files(inputs: list[ListAudioFilesInputParams]) -> list[list
 async def convert_to_supported_format(
     input_file: Path,
     output_path: Path | None = None,
-    target_format: SupportedAudioFormat = "mp3",
+    target_format: SupportedChatWithAudioFormat = "mp3",
 ) -> Path:
     """Async version of audio file conversion using pydub.
 
@@ -531,9 +615,14 @@ async def compress_audio(inputs: list[CompressAudioInputParams]) -> list[dict[st
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
-@mcp.tool()
+@mcp.tool(
+    description="A tool used to transcribe audio files. It is recommended to use `gpt-4o-mini-transcribe` by default. "
+    "If the user wants maximum performance, use `gpt-4o-transcribe`. "
+    "Rarely should you use `whisper-1` as it is least performant, but it is available if needed. "
+    "You can use prompts to guide the transcription process based on the users preference."
+)
 async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dict[str, Any]]:
-    """Transcribe audio using Whisper API for multiple files in parallel.
+    """Transcribe audio using OpenAI's transcribe API for multiple files in parallel.
 
     Raises an exception on failure, so MCP returns a proper JSON error.
     """
@@ -556,7 +645,11 @@ async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dic
             file_obj.name = file_path.name  # OpenAI API needs a filename
 
             transcript = await client.audio.transcriptions.create(
-                model=input_data.model, file=file_obj, response_format="text"
+                model=input_data.model,
+                file=file_obj,
+                prompt=input_data.prompt,
+                response_format=input_data.response_format,
+                timestamp_granularities=input_data.timestamp_granularities,
             )
             return {"text": transcript}
         except Exception as e:
@@ -565,13 +658,13 @@ async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dic
     return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
 
 
-@mcp.tool()
-async def transcribe_with_llm(
-    inputs: list[TranscribeWithLLMInputParams],
+@mcp.tool(description="A tool used to chat with audio files. The response will be a response to the audio file sent.")
+async def chat_with_audio(
+    inputs: list[ChatWithAudioInputParams],
 ) -> list[dict[str, Any]]:
     """Transcribe multiple audio files using GPT-4 with optional text prompts in parallel."""
 
-    async def process_single(input_data: TranscribeWithLLMInputParams) -> dict[str, Any]:
+    async def process_single(input_data: ChatWithAudioInputParams) -> dict[str, Any]:
         file_path = input_data.input_file_path
         if not file_path.exists() or not file_path.is_file():
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -588,20 +681,25 @@ async def transcribe_with_llm(
             raise RuntimeError(f"Failed reading audio file '{file_path}': {e}") from e
 
         client = AsyncOpenAI()
+        messages: list[ChatCompletionMessageParam] = []
+        if input_data.system_prompt:
+            messages.append({"role": "system", "content": input_data.system_prompt})
+
         user_content: list[ChatCompletionContentPartParam] = []
-        if input_data.text_prompt:
-            user_content.append({"type": "text", "text": input_data.text_prompt})
+        if input_data.user_prompt:
+            user_content.append({"type": "text", "text": input_data.user_prompt})
         user_content.append(
             {
                 "type": "input_audio",
                 "input_audio": {"data": audio_b64, "format": cast(Literal["wav", "mp3"], ext)},
             }
         )
+        messages.append({"role": "user", "content": user_content})
 
         try:
             completion = await client.chat.completions.create(
                 model=input_data.model,
-                messages=[{"role": "user", "content": user_content}],
+                messages=messages,
                 modalities=["text"],
             )
             return {"text": completion.choices[0].message.content}
@@ -623,8 +721,8 @@ async def transcribe_with_enhancement(
     - professional: Formats the transcription in a formal, business-appropriate way
     - analytical: Includes analysis of speech patterns, key points, and structure
     """
-    converted_inputs = [input_.to_transcribe_with_llm_input_params() for input_ in inputs]
-    result: list[dict[str, Any]] = await transcribe_with_llm(converted_inputs)
+    converted_inputs = [input_.to_transcribe_audio_input_params() for input_ in inputs]
+    result: list[dict[str, Any]] = await transcribe_audio(converted_inputs)
     return result
 
 
@@ -636,10 +734,12 @@ def split_text_for_tts(text: str, max_length: int = 4000) -> list[str]:
     splitting at commas, then spaces.
 
     Args:
+    ----
         text: The text to split
         max_length: Maximum character length for each chunk (default 4000 to provide buffer)
 
     Returns:
+    -------
         List of text chunks, each below the maximum length
 
     """
@@ -729,6 +829,8 @@ async def create_claudecast(
                     model=input_data.model,
                     voice=input_data.voice,
                     input=text_chunks[0],
+                    instructions=input_data.instructions,
+                    speed=input_data.speed,
                 )
 
                 # Stream to file using aiofiles for async IO
@@ -753,6 +855,8 @@ async def create_claudecast(
                         model=input_data.model,
                         voice=input_data.voice,
                         input=chunk_text,
+                        instructions=input_data.instructions,
+                        speed=input_data.speed,
                     )
 
                     audio_bytes = await response.aread()

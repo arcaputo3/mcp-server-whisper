@@ -13,15 +13,17 @@ A Model Context Protocol (MCP) server for advanced audio transcription and proce
 
 ## Overview
 
-MCP Server Whisper provides a standardized way to process audio files through OpenAI's transcription services. By implementing the [Model Context Protocol](https://modelcontextprotocol.io/), it enables AI assistants like Claude to seamlessly interact with audio processing capabilities.
+MCP Server Whisper provides a standardized way to process audio files through OpenAI's latest transcription and speech services. By implementing the [Model Context Protocol](https://modelcontextprotocol.io/), it enables AI assistants like Claude to seamlessly interact with audio processing capabilities.
 
 Key features:
 - 🔍 **Advanced file searching** with regex patterns, file metadata filtering, and sorting capabilities
 - 🔄 **Parallel batch processing** for multiple audio files
 - 🔄 **Format conversion** between supported audio types
 - 📦 **Automatic compression** for oversized files
-- ✏️ **Enhanced transcription** with specialized prompts
-- 🎙️ **Text-to-speech generation** with customizable voices and models
+- 🎯 **Multi-model transcription** with support for all OpenAI audio models
+- 🗣️ **Interactive audio chat** with GPT-4o audio models
+- ✏️ **Enhanced transcription** with specialized prompts and timestamp support
+- 🎙️ **Text-to-speech generation** with customizable voices, instructions, and speed
 - 📊 **Comprehensive metadata** including duration, file size, and format support
 - 🚀 **High-performance caching** for repeated operations
 
@@ -82,8 +84,17 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
 
 #### Transcription
 
-- `transcribe_audio` - Basic transcription using OpenAI's Whisper model
-- `transcribe_with_llm` - Transcription with custom prompts using GPT-4o
+- `transcribe_audio` - Advanced transcription using OpenAI's models:
+  - Supports `whisper-1`, `gpt-4o-transcribe`, and `gpt-4o-mini-transcribe`
+  - Custom prompts for guided transcription
+  - Optional timestamp granularities for word and segment-level timing
+  - JSON response format option
+ 
+- `chat_with_audio` - Interactive audio analysis using GPT-4o audio models:
+  - Supports `gpt-4o-audio-preview-2024-10-01`, `gpt-4o-audio-preview-2024-12-17`, and `gpt-4o-mini-audio-preview-2024-12-17`
+  - Custom system and user prompts
+  - Provides conversational responses to audio content
+  
 - `transcribe_with_enhancement` - Enhanced transcription with specialized templates:
   - `detailed` - Includes tone, emotion, and background details
   - `storytelling` - Transforms the transcript into a narrative form
@@ -93,8 +104,9 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
 #### Text-to-Speech
 
 - `create_claudecast` - Generate text-to-speech audio using OpenAI's TTS API:
-  - Supports different models (`tts-1`, `tts-1-hd`)
+  - Supports `gpt-4o-mini-tts` (preferred) and other speech models
   - Multiple voice options (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)
+  - Speed adjustment and custom instructions
   - Customizable output file paths
   - Handles texts of any length by automatically splitting and joining audio segments
 
@@ -102,8 +114,8 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
 
 | Model | Supported Formats |
 |-------|-------------------|
-| Whisper | mp3, mp4, mpeg, mpga, m4a, wav, webm |
-| GPT-4o | mp3, wav |
+| Transcribe | flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm |
+| Chat | mp3, wav |
 
 **Note:** Files larger than 25MB are automatically compressed to meet API limits.
 
@@ -152,6 +164,7 @@ Claude will:
    - `format: "mp3"`
 2. Process all matching files in parallel using `transcribe_with_enhancement`
    - `enhancement_type: "professional"`
+   - `model: "gpt-4o-mini-transcribe"` (for efficiency)
 3. Return all transcriptions in a well-formatted output
 </details>
 
@@ -166,7 +179,9 @@ Claude will:
 1. Use the `create_claudecast` tool with:
    - `text_prompt` containing the script
    - `voice: "shimmer"`
-   - `model: "tts-1-hd"` (default high-quality model)
+   - `model: "gpt-4o-mini-tts"` (default high-quality model)
+   - `instructions: "Speak in an enthusiastic, podcast host style"` (optional)
+   - `speed: 1.0` (default, can be adjusted)
 2. Generate the audio file and save it to the configured audio directory
 3. Provide the path to the generated audio file
 </details>
@@ -267,8 +282,9 @@ MCP Server Whisper is built on the Model Context Protocol, which standardizes ho
 **Under the hood, it uses:**
 - `pydub` for audio file manipulation
 - `asyncio` for concurrent processing
-- OpenAI's Whisper API for base transcription
-- GPT-4o for enhanced audio understanding
+- OpenAI's latest transcription models (including gpt-4o-transcribe)
+- OpenAI's GPT-4o audio models for enhanced understanding
+- OpenAI's gpt-4o-mini-tts for high-quality speech synthesis
 - FastMCP for simplified MCP server implementation
 - Type hints and strict mypy validation throughout the codebase
 
