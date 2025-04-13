@@ -25,3 +25,6 @@ changes.txt
 
 # MacOS
 .DS_Store
+
+# Build
+dist/

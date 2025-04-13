@@ -66,6 +66,29 @@ To install the server for use with Claude Desktop or other MCP clients:
 mcp install src/mcp_server_whisper/server.py [--env-file .env]
 ```
 
+> **Note**  
+> if you're experiencing issues with `mcp install` method, you can manually add something like this to your `mcp.json` file.  
+```json
+{
+   "mcpServers": {
+      "audio-tools": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "{{CLONED PROJECT DIRECTORY}}",
+        "mcp",
+        "run",
+        "src/mcp_server_whisper/server.py"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "{{API KEY}}",
+        "AUDIO_FILES_PATH": "{{PATH TO AUDIO FILES}}"
+      }
+    }
+   }
+}
+```
 ### Exposed MCP Tools
 
 #### Audio File Management

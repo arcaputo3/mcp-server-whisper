@@ -1,0 +1,6 @@
+aiofiles
+dotenv
+ffmpeg-python
+mcp[cli]
+openai>=1.68.2
+pydub
