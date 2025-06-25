@@ -311,6 +311,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [OpenAI Whisper](https://openai.com/research/whisper) - For audio transcription
 - [FastMCP](https://github.com/anthropics/FastMCP) - For MCP server implementation
 - [Anthropic Claude](https://claude.ai/) - For natural language interaction
+- [MCP Review](https://mcpreview.com/mcp-servers/arcaputo3/mcp-server-whisper) - This MCP Server is certified by MCP Review
 
 ---
 
