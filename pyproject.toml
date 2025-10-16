@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-whisper"
-version = "1.0.0"
+version = "1.1.0"
 description = "An MCP server for transcribing audio files using OpenAI Whisper and GPT-4o"
 readme = "README.md"
 requires-python = ">=3.10"

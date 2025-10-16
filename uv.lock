@@ -549,7 +549,7 @@ wheels = [
 
 [[package]]
 name = "mcp-server-whisper"
-version = "0.2.0"
+version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

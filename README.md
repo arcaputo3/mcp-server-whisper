@@ -296,11 +296,14 @@ Push a tag to automatically create a release and publish to PyPI:
 
 # 2. Update __version__ in src/mcp_server_whisper/__init__.py to match
 
-# 3. Commit the version bump
-git add pyproject.toml src/mcp_server_whisper/__init__.py
+# 3. Update the lock file
+uv lock
+
+# 4. Commit the version bump
+git add pyproject.toml src/mcp_server_whisper/__init__.py uv.lock
 git commit -m "chore: bump version to 1.1.0"
 
-# 4. Create and push the version tag
+# 5. Create and push the version tag
 git tag v1.1.0
 git push origin main
 git push origin v1.1.0
