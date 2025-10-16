@@ -28,6 +28,8 @@ Key features:
 - 🚀 **High-performance caching** for repeated operations
 - 🔒 **Type-safe responses** with Pydantic models for all tool outputs
 
+> **Note:** This project is unofficial and not affiliated with, endorsed by, or sponsored by OpenAI. It provides a Model Context Protocol interface to OpenAI's publicly available APIs.
+
 ## Installation
 
 ```bash
