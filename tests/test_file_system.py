@@ -40,7 +40,7 @@ class TestFileSystemRepository:
             assert result.format == "mp3"
             assert result.size_bytes == 10  # len(b"fake audio")
             assert result.transcription_support == ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]
-            assert "gpt-4o-audio-preview" in result.chat_support[0]  # MP3 supports chat
+            assert result.chat_support and "gpt-4o-audio-preview" in result.chat_support[0]  # MP3 supports chat
             assert result.duration_seconds == 60.0
 
     @pytest.mark.anyio
