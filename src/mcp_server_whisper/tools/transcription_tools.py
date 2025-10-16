@@ -65,7 +65,11 @@ def create_transcription_tools(mcp: MCPServer) -> None:
         )
 
     @mcp.tool(
-        description="A tool used to chat with audio files. The response will be a response to the audio file sent."
+        description=(
+            "A tool used to chat with audio files. The response will be a response to the audio file sent. "
+            "It is recommended to use `gpt-4o-audio-preview` by default for best results. "
+            "Note: `gpt-4o-mini-audio-preview` has limitations with audio chat and may not process audio correctly."
+        )
     )
     async def chat_with_audio(
         input_file_name: str,

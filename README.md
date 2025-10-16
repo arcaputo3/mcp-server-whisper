@@ -95,7 +95,8 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
   - Returns `TranscriptionResult` with text, usage data, and optional timestamps
 
 - `chat_with_audio` - Interactive audio analysis using GPT-4o audio models:
-  - Supports latest models: `gpt-4o-audio-preview`, `gpt-4o-mini-audio-preview`, and dated versions
+  - Supports `gpt-4o-audio-preview` (recommended) and dated versions
+  - Note: `gpt-4o-mini-audio-preview` has limitations with audio chat and is not recommended
   - Custom system and user prompts
   - Provides conversational responses to audio content
   - Returns `ChatResult` with response text
