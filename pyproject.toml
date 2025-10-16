@@ -21,7 +21,16 @@ name = "Richie Caputo"
 email = "rcaputo3@tjclp.com"
 
 [dependency-groups]
-dev = [ "mypy>=1.18.2", "pre-commit", "pytest", "pytest-anyio", "pytest-cov", "ruff>=0.14.0", "toml", "types-aiofiles",]
+dev = [
+    "mypy>=1.18.2",
+    "pre-commit",
+    "pytest",
+    "pytest-anyio",
+    "pytest-cov",
+    "ruff>=0.14.0",
+    "toml",
+    "types-aiofiles"
+]
 
 [build-system]
 requires = [ "hatchling",]

@@ -1,7 +1,9 @@
 """Caching utilities for audio file metadata."""
 
+from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from ..models import FilePathSupportParams
 
@@ -25,7 +27,7 @@ class AudioFileCache:
         self,
         file_path: str,
         mtime: float,
-        get_support_func,
+        get_support_func: Callable[[Path], Awaitable[FilePathSupportParams]],
     ) -> FilePathSupportParams:
         """Get cached audio file support information.
 
@@ -50,7 +52,7 @@ class AudioFileCache:
         self,
         file_path: str,
         mtime: float,  # noqa: ARG002 - Used as cache key
-        get_support_func,
+        get_support_func: Callable[[Path], Awaitable[FilePathSupportParams]],
     ) -> FilePathSupportParams:
         """Get file support using the provided function.
 
@@ -71,7 +73,7 @@ class AudioFileCache:
         """Clear all cached entries."""
         self._get_cached_support.cache_clear()
 
-    def cache_info(self):
+    def cache_info(self) -> Any:
         """Get cache statistics.
 
         Returns
@@ -89,7 +91,7 @@ _global_audio_file_cache = AudioFileCache(maxsize=32)
 async def get_cached_audio_file_support(
     file_path: str,
     mtime: float,
-    get_support_func,
+    get_support_func: Callable[[Path], Awaitable[FilePathSupportParams]],
 ) -> FilePathSupportParams:
     """Get cached audio file support using the global cache instance.
 
@@ -118,7 +120,7 @@ def clear_global_cache() -> None:
     _global_audio_file_cache.clear_cache()
 
 
-def get_global_cache_info():
+def get_global_cache_info() -> Any:
     """Get statistics for the global cache.
 
     Returns

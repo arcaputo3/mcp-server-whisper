@@ -1,5 +1,6 @@
 """MCP tools for Whisper server."""
 
+from ..infrastructure import MCPServer
 from .audio_tools import create_audio_tools
 from .file_tools import create_file_tools
 from .transcription_tools import create_transcription_tools
@@ -13,7 +14,7 @@ __all__ = [
 ]
 
 
-def register_all_tools(mcp):
+def register_all_tools(mcp: MCPServer) -> None:
     """Register all MCP tools with the server.
 
     Args:

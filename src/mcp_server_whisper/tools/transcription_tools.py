@@ -6,12 +6,12 @@ from openai.types import AudioModel, AudioResponseFormat
 
 from ..config import check_and_get_audio_path
 from ..constants import ENHANCEMENT_PROMPTS, AudioChatModel, EnhancementType
-from ..infrastructure import FileSystemRepository, OpenAIClientWrapper, SecurePathResolver
+from ..infrastructure import FileSystemRepository, MCPServer, OpenAIClientWrapper, SecurePathResolver
 from ..models import ChatResult, TranscriptionResult
 from ..services import TranscriptionService
 
 
-def create_transcription_tools(mcp):
+def create_transcription_tools(mcp: MCPServer) -> None:
     """Register transcription tools with the MCP server.
 
     Args:

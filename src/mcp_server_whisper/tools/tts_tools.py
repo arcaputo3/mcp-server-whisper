@@ -6,12 +6,12 @@ from openai.types.audio.speech_model import SpeechModel
 
 from ..config import check_and_get_audio_path
 from ..constants import TTSVoice
-from ..infrastructure import FileSystemRepository, OpenAIClientWrapper, SecurePathResolver
+from ..infrastructure import FileSystemRepository, MCPServer, OpenAIClientWrapper, SecurePathResolver
 from ..models import TTSResult
 from ..services import TTSService
 
 
-def create_tts_tools(mcp):
+def create_tts_tools(mcp: MCPServer) -> None:
     """Register TTS tools with the MCP server.
 
     Args:

@@ -4,12 +4,12 @@ from typing import Optional
 
 from ..config import check_and_get_audio_path
 from ..constants import SortBy
-from ..infrastructure import FileSystemRepository
+from ..infrastructure import FileSystemRepository, MCPServer
 from ..models import FilePathSupportParams
 from ..services import FileService
 
 
-def create_file_tools(mcp):
+def create_file_tools(mcp: MCPServer) -> None:
     """Register file management tools with the MCP server.
 
     Args:

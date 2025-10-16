@@ -4,12 +4,12 @@ from typing import Optional
 
 from ..config import check_and_get_audio_path
 from ..constants import DEFAULT_MAX_FILE_SIZE_MB, SupportedChatWithAudioFormat
-from ..infrastructure import FileSystemRepository, SecurePathResolver
+from ..infrastructure import FileSystemRepository, MCPServer, SecurePathResolver
 from ..models import AudioProcessingResult
 from ..services import AudioService
 
 
-def create_audio_tools(mcp):
+def create_audio_tools(mcp: MCPServer) -> None:
     """Register audio processing tools with the MCP server.
 
     Args:

@@ -19,6 +19,7 @@ __pycache__
 
 # Testing
 pytest.txt
+.coverage
 
 # Diffs
 changes.txt

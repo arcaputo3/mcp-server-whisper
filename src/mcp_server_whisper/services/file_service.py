@@ -1,5 +1,6 @@
 """File discovery and management service."""
 
+from pathlib import Path
 from typing import Optional
 
 import anyio
@@ -77,7 +78,7 @@ class FileService:
         )
 
         # Step 2: Get metadata for all files in parallel (with caching)
-        async def get_support(path):
+        async def get_support(path: Path) -> FilePathSupportParams:
             path_str = str(path)
             mtime = path.stat().st_mtime
             return await get_cached_audio_file_support(
