@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "whisper": {
+      "command": "uv",
+      "args": [
+        "run",
+        "mcp-server-whisper"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "AUDIO_FILES_PATH": "${AUDIO_FILES_PATH}"
+      }
+    }
+  }
+}

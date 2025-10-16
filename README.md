@@ -5,7 +5,7 @@
 A Model Context Protocol (MCP) server for advanced audio transcription and processing using OpenAI's Whisper and GPT-4o models.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg)](https://www.python.org/downloads/)
 ![CI Status](https://github.com/arcaputo3/mcp-server-whisper/workflows/CI/CD%20Pipeline/badge.svg)
 [![Built with uv](https://img.shields.io/badge/built%20with-uv-a240e6)](https://github.com/astral-sh/uv)
 
@@ -252,7 +252,7 @@ pre-commit run --all-files
 The project uses GitHub Actions for CI/CD:
 
 1. **Lint & Type Check**: Ensures code quality with ruff and strict mypy type checking
-2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11)
+2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11, 3.12, 3.13, 3.14)
 3. **Build**: Creates distribution packages
 4. **Publish**: Automatically publishes to PyPI when a new version tag is pushed
 
@@ -280,7 +280,7 @@ MCP Server Whisper is built on the Model Context Protocol, which standardizes ho
 5. **Optimizes Performance**: With caching mechanisms for repeated operations
 
 **Under the hood, it uses:**
-- `pydub` for audio file manipulation
+- `pydub` for audio file manipulation (with `audioop-lts` for Python 3.13+)
 - `asyncio` for concurrent processing
 - OpenAI's latest transcription models (including gpt-4o-transcribe)
 - OpenAI's GPT-4o audio models for enhanced understanding

@@ -3,8 +3,17 @@ name = "mcp-server-whisper"
 version = "0.2.0"
 description = "An MCP server for transcribing audio files using OpenAI Whisper and GPT-4o"
 readme = "README.md"
-requires-python = ">=3.10,<3.12"
-dependencies = [ "aiofiles", "dotenv", "ffmpeg-python", "mcp[cli]", "openai>=1.68.2", "pydantic-settings", "pydub",]
+requires-python = ">=3.10"
+dependencies = [
+    "aiofiles",
+    "audioop-lts; python_version >= '3.13'",
+    "dotenv",
+    "ffmpeg-python",
+    "mcp[cli]",
+    "openai>=1.68.2",
+    "pydantic-settings",
+    "pydub",
+]
 [[project.authors]]
 name = "Richie Caputo"
 email = "rcaputo3@tjclp.com"
