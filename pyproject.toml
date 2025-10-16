@@ -3,14 +3,34 @@ name = "mcp-server-whisper"
 version = "0.2.0"
 description = "An MCP server for transcribing audio files using OpenAI Whisper and GPT-4o"
 readme = "README.md"
-requires-python = ">=3.10,<3.12"
-dependencies = [ "aiofiles", "dotenv", "ffmpeg-python", "mcp[cli]", "openai>=1.68.2", "pydub",]
+requires-python = ">=3.10"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "aioresult",
+    "anyio",
+    "audioop-lts; python_version >= '3.13'",
+    "dotenv",
+    "ffmpeg-python",
+    "mcp>=1.17.0",
+    "openai>=2.4.0",
+    "pydantic-settings>=2.11.0",
+    "pydub",
+]
 [[project.authors]]
 name = "Richie Caputo"
 email = "rcaputo3@tjclp.com"
 
 [dependency-groups]
-dev = [ "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov", "ruff", "toml", "types-aiofiles",]
+dev = [
+    "mypy>=1.18.2",
+    "pre-commit",
+    "pytest",
+    "pytest-anyio",
+    "pytest-cov",
+    "ruff>=0.14.0",
+    "toml",
+    "types-aiofiles"
+]
 
 [build-system]
 requires = [ "hatchling",]
@@ -34,9 +54,9 @@ convention = "google"
 
 [tool.ruff.lint]
 select = [ "E", "F", "I", "D", "W",]
+ignore = [ "D203", "D213",]  # D203/D211 conflict, D212/D213 conflict - use Google style
 fixable = [ "I", "E", "W",]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+anyio_backends = ["asyncio"]
 filterwarnings = [ "ignore:Unused async fixture loop scope:pytest.PytestWarning",]

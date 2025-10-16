@@ -5,7 +5,7 @@
 A Model Context Protocol (MCP) server for advanced audio transcription and processing using OpenAI's Whisper and GPT-4o models.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg)](https://www.python.org/downloads/)
 ![CI Status](https://github.com/arcaputo3/mcp-server-whisper/workflows/CI/CD%20Pipeline/badge.svg)
 [![Built with uv](https://img.shields.io/badge/built%20with-uv-a240e6)](https://github.com/astral-sh/uv)
 
@@ -17,7 +17,7 @@ MCP Server Whisper provides a standardized way to process audio files through Op
 
 Key features:
 - 🔍 **Advanced file searching** with regex patterns, file metadata filtering, and sorting capabilities
-- 🔄 **Parallel batch processing** for multiple audio files
+- ⚡ **MCP-native parallel processing** - call multiple tools simultaneously
 - 🔄 **Format conversion** between supported audio types
 - 📦 **Automatic compression** for oversized files
 - 🎯 **Multi-model transcription** with support for all OpenAI audio models
@@ -26,6 +26,7 @@ Key features:
 - 🎙️ **Text-to-speech generation** with customizable voices, instructions, and speed
 - 📊 **Comprehensive metadata** including duration, file size, and format support
 - 🚀 **High-performance caching** for repeated operations
+- 🔒 **Type-safe responses** with Pydantic models for all tool outputs
 
 ## Installation
 
@@ -43,27 +44,54 @@ uv run pre-commit install
 
 ## Environment Setup
 
-Create a `.env` file with the following variables:
+Create a `.env` file based on the provided `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your actual values:
 
 ```
 OPENAI_API_KEY=your_openai_api_key
 AUDIO_FILES_PATH=/path/to/your/audio/files
 ```
 
+**Note:** Environment variables must be available at runtime. For local development with Claude, use a tool like `dotenv-cli` to load them (see Usage section below).
+
 ## Usage
 
-### Starting the Server
+### Local Development with Claude
 
-To run the MCP server in development mode:
+The project includes a `.mcp.json` configuration file for local development with Claude. To use it:
+
+1. Ensure your `.env` file is configured with the required environment variables
+2. Launch Claude with environment variables loaded:
 
 ```bash
-mcp dev src/mcp_server_whisper/server.py
+bunx dotenv-cli -- claude
 ```
 
-To install the server for use with Claude Desktop or other MCP clients:
+This will:
+- Load environment variables from your `.env` file
+- Launch Claude with the MCP server configured per `.mcp.json`
+- Enable hot-reloading during development
 
-```bash
-mcp install src/mcp_server_whisper/server.py [--env-file .env]
+The `.mcp.json` configuration:
+
+```json
+{
+  "mcpServers": {
+    "whisper": {
+      "command": "uv",
+      "args": ["run", "mcp-server-whisper"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "AUDIO_FILES_PATH": "${AUDIO_FILES_PATH}"
+      }
+    }
+  }
+}
 ```
 
 ### Exposed MCP Tools
@@ -74,13 +102,15 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
   - Filter by regex pattern matching on filenames
   - Filter by file size, duration, modification time, or format
   - Sort by name, size, duration, modification time, or format
-  - All operations support parallelized batch processing
+  - Returns type-safe `FilePathSupportParams` with full metadata
 - `get_latest_audio` - Gets the most recently modified audio file with model support info
 
 #### Audio Processing
 
 - `convert_audio` - Converts audio files to supported formats (mp3 or wav)
+  - Returns `AudioProcessingResult` with output path
 - `compress_audio` - Compresses audio files that exceed size limits
+  - Returns `AudioProcessingResult` with output path
 
 #### Transcription
 
@@ -89,33 +119,38 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
   - Custom prompts for guided transcription
   - Optional timestamp granularities for word and segment-level timing
   - JSON response format option
- 
+  - Returns `TranscriptionResult` with text, usage data, and optional timestamps
+
 - `chat_with_audio` - Interactive audio analysis using GPT-4o audio models:
-  - Supports `gpt-4o-audio-preview-2024-10-01`, `gpt-4o-audio-preview-2024-12-17`, and `gpt-4o-mini-audio-preview-2024-12-17`
+  - Supports `gpt-4o-audio-preview` (recommended) and dated versions
+  - Note: `gpt-4o-mini-audio-preview` has limitations with audio chat and is not recommended
   - Custom system and user prompts
   - Provides conversational responses to audio content
-  
+  - Returns `ChatResult` with response text
+
 - `transcribe_with_enhancement` - Enhanced transcription with specialized templates:
   - `detailed` - Includes tone, emotion, and background details
   - `storytelling` - Transforms the transcript into a narrative form
   - `professional` - Creates formal, business-appropriate transcriptions
   - `analytical` - Adds analysis of speech patterns and key points
+  - Returns `TranscriptionResult` with enhanced output
 
 #### Text-to-Speech
 
 - `create_claudecast` - Generate text-to-speech audio using OpenAI's TTS API:
   - Supports `gpt-4o-mini-tts` (preferred) and other speech models
-  - Multiple voice options (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)
+  - Multiple voice options (alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar)
   - Speed adjustment and custom instructions
   - Customizable output file paths
   - Handles texts of any length by automatically splitting and joining audio segments
+  - Returns `TTSResult` with output path
 
 ## Supported Audio Formats
 
-| Model | Supported Formats |
-|-------|-------------------|
+| Model      | Supported Formats                               |
+|------------|-------------------------------------------------|
 | Transcribe | flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm |
-| Chat | mp3, wav |
+| Chat       | mp3, wav                                        |
 
 **Note:** Files larger than 25MB are automatically compressed to meet API limits.
 
@@ -159,13 +194,10 @@ Claude, find all MP3 files with "interview" in the filename and create professio
 ```
 
 Claude will:
-1. Search for files using `list_audio_files` with:
-   - `pattern: ".*interview.*\\.mp3"`
-   - `format: "mp3"`
-2. Process all matching files in parallel using `transcribe_with_enhancement`
-   - `enhancement_type: "professional"`
-   - `model: "gpt-4o-mini-transcribe"` (for efficiency)
-3. Return all transcriptions in a well-formatted output
+1. Search for files using `list_audio_files` with pattern and format filters
+2. Make multiple parallel `transcribe_with_enhancement` tool calls (MCP handles parallelism natively)
+3. Each call uses `enhancement_type: "professional"` and returns a typed `TranscriptionResult`
+4. Return all transcriptions with full metadata in a well-formatted output
 </details>
 
 <details>
@@ -188,26 +220,16 @@ Claude will:
 
 ## Configuration with Claude Desktop
 
-Add this to your `claude_desktop_config.json`:
+For production use with Claude Desktop (as opposed to local development), add this to your `claude_desktop_config.json`:
 
 ### UVX
 
-```json 
+```json
 {
   "mcpServers": {
     "whisper": {
       "command": "uvx",
-      "args": [
-        "--with",
-        "aiofiles",
-        "--with",
-        "mcp[cli]",
-        "--with",
-        "openai",
-        "--with",
-        "pydub",
-        "mcp-server-whisper"
-      ],
+      "args": ["mcp-server-whisper"],
       "env": {
         "OPENAI_API_KEY": "your_openai_api_key",
         "AUDIO_FILES_PATH": "/path/to/your/audio/files"
@@ -221,7 +243,7 @@ Add this to your `claude_desktop_config.json`:
 
 - Install [Screen Recorder By Omi](https://apps.apple.com/us/app/screen-recorder-by-omi/id1592987853?mt=12) (free)
 - Set `AUDIO_FILES_PATH` to `/Users/<user>/Movies/Omi Screen Recorder` and replace `<user>` with your username
-- As you record audio with the app, you can transcribe large batches directly with Claude
+- As you record audio with the app, you can transcribe multiple files in parallel with Claude
 
 ## Development
 
@@ -252,9 +274,11 @@ pre-commit run --all-files
 The project uses GitHub Actions for CI/CD:
 
 1. **Lint & Type Check**: Ensures code quality with ruff and strict mypy type checking
-2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11)
+2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11, 3.12, 3.13, 3.14, 3.14t)
 3. **Build**: Creates distribution packages
 4. **Publish**: Automatically publishes to PyPI when a new version tag is pushed
+
+**Note:** Python 3.14t is the free-threaded build (without GIL) for testing true parallelism.
 
 To create a new release version:
 ```bash
@@ -267,21 +291,35 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
+## API Design Philosophy
+
+MCP Server Whisper follows a **flat, type-safe API design** optimized for MCP clients:
+
+- **Flat Arguments**: All tools accept flat parameters instead of nested objects for simpler, more intuitive calls
+- **Type-Safe Responses**: Every tool returns a strongly-typed Pydantic model (`TranscriptionResult`, `ChatResult`, `AudioProcessingResult`, `TTSResult`)
+- **Single-Item Operations**: One call processes one file, with MCP protocol handling parallelism natively
+- **Per-File Error Handling**: Failures are isolated to individual operations, not entire batches
+- **Self-Documenting**: Type hints provide autocomplete and validation in IDEs and AI models
+
+This design makes it significantly easier for AI assistants to use the tools correctly and handle results reliably.
+
 ## How It Works
 
 For detailed architecture information, see [Architecture Documentation](docs/architecture.md).
 
 MCP Server Whisper is built on the Model Context Protocol, which standardizes how AI models interact with external tools and data sources. The server:
 
-1. **Exposes Audio Processing Capabilities**: Through standardized MCP tool interfaces
-2. **Implements Parallel Processing**: Using asyncio and batch operations for performance
+1. **Exposes Audio Processing Capabilities**: Through standardized MCP tool interfaces with flat, type-safe APIs
+2. **Implements Parallel Processing**: Using anyio structured concurrency; MCP clients handle parallelism natively
 3. **Manages File Operations**: Handles detection, validation, conversion, and compression
 4. **Provides Rich Transcription**: Via different OpenAI models and enhancement templates
 5. **Optimizes Performance**: With caching mechanisms for repeated operations
+6. **Ensures Type Safety**: All responses use Pydantic models for validation and IDE support
 
 **Under the hood, it uses:**
-- `pydub` for audio file manipulation
-- `asyncio` for concurrent processing
+- `pydub` for audio file manipulation (with `audioop-lts` for Python 3.13+)
+- `anyio` for structured concurrency and task group management
+- `aioresult` for collecting results from parallel task groups
 - OpenAI's latest transcription models (including gpt-4o-transcribe)
 - OpenAI's GPT-4o audio models for enhanced understanding
 - OpenAI's gpt-4o-mini-tts for high-quality speech synthesis

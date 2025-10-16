@@ -1,15 +1,10 @@
 """Test audio file listing and filtering capabilities."""
 
-import pytest
-
-from mcp_server_whisper.server import (
-    ListAudioFilesInputParams,
-    SortBy,
-)
+from mcp_server_whisper.constants import SortBy
+from mcp_server_whisper.models import ListAudioFilesInputParams
 
 
-@pytest.mark.asyncio
-async def test_list_audio_files_input_params() -> None:
+def test_list_audio_files_input_params() -> None:
     """Test the ListAudioFilesInputParams class with various configurations."""
     # Test with default values
     params: ListAudioFilesInputParams = ListAudioFilesInputParams()
