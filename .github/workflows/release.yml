@@ -1,128 +1,71 @@
-name: Create & Publish Release
+name: Release & Publish
 
 on:
-  workflow_dispatch:
-    inputs:
-      version_part:
-        description: 'Part of version to bump (major, minor, patch)'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    tags:
+      - 'v*'  # Trigger on any tag starting with 'v'
+  release:
+    types: [published]  # Trigger when a release is published (manual or automatic)
 
 permissions:
   contents: write
+  id-token: write  # Required for PyPI trusted publishing
 
 jobs:
-  release:
+  create-release:
+    name: Create GitHub Release
+    # Only run this job when triggered by a tag push
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.bump_version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.14'
 
-      - name: Set up Git
-        run: |
-          git config user.name 'GitHub Actions'
-          git config user.email 'actions@github.com'
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
-          
-      - name: Install dependencies
+
+      - name: Extract version from tag
+        id: get_version
         run: |
-          uv sync
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
 
-      - name: Bump version
-        id: bump_version
+      - name: Verify version matches pyproject.toml
         run: |
-          uv run python -c '
-          import toml
-          import os  # Add os import
-          import sys
-          import re
-
-          # Read the current version
-          with open("pyproject.toml", "r") as f:
-              data = toml.load(f)
-
-          current_version = data["project"]["version"]
-          print(f"Current version: {current_version}")
-
-          # Parse the version
-          major, minor, patch = map(int, current_version.split("."))
-
-          # Bump the version
-          if "${{ github.event.inputs.version_part }}" == "major":
-              major += 1
-              minor = 0
-              patch = 0
-          elif "${{ github.event.inputs.version_part }}" == "minor":
-              minor += 1
-              patch = 0
-          else:  # patch
-              patch += 1
-
-          new_version = f"{major}.{minor}.{patch}"
-          print(f"New version: {new_version}")
-
-          # Update the version in pyproject.toml
-          data["project"]["version"] = new_version
-          with open("pyproject.toml", "w") as f:
-              toml.dump(data, f)
-
-          # Output the new version for use in subsequent steps
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:  # Change to os.environ
-              f.write(f"version={new_version}\n")
-          '
-
-      - name: Lock update
-        run: |
-          uv lock
-
-      - name: Commit and Push changes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git add pyproject.toml uv.lock
-          git commit -m "Bump version to ${{ steps.bump_version.outputs.version }}"
-          git push origin HEAD
-
-      - name: Create Tag
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git tag -a v${{ steps.bump_version.outputs.version }} -m "Release v${{ steps.bump_version.outputs.version }}"
-          git push origin v${{ steps.bump_version.outputs.version }}
+          PYPROJECT_VERSION=$(uv run python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+          TAG_VERSION=${{ steps.get_version.outputs.version }}
+          if [ "$PYPROJECT_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: pyproject.toml version ($PYPROJECT_VERSION) doesn't match tag version ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "Version verification passed: $TAG_VERSION"
 
       - name: Build package
         run: uv build
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.4.1
         with:
-          tag_name: v${{ steps.bump_version.outputs.version }}
-          name: Release v${{ steps.bump_version.outputs.version }}
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: v${{ steps.get_version.outputs.version }}
           draft: false
           prerelease: false
           generate_release_notes: true
+          files: dist/*
           token: ${{ secrets.GITHUB_TOKEN }}
-          
-  pypi-publish:
-    name: Upload Release to PyPI
-    needs: [release]
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    # Only run this job when triggered by a release being published
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -132,8 +75,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
-        with:
-          ref: v${{ needs.release.outputs.version }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -142,11 +83,11 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
-          
+
       - name: Build package
         run: uv build
-      
-      - name: Publish package distributions to PyPI
+
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/

@@ -277,21 +277,51 @@ The project uses GitHub Actions for CI/CD:
 
 1. **Lint & Type Check**: Ensures code quality with ruff and strict mypy type checking
 2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11, 3.12, 3.13, 3.14, 3.14t)
-3. **Build**: Creates distribution packages
-4. **Publish**: Automatically publishes to PyPI when a new version tag is pushed
+3. **Release & Publish**: Dual-trigger workflow for flexible release management
 
 **Note:** Python 3.14t is the free-threaded build (without GIL) for testing true parallelism.
 
-To create a new release version:
+#### Creating a New Release
+
+The release workflow supports two approaches:
+
+**Option 1: Automated Release (Recommended)**
+
+Push a tag to automatically create a release and publish to PyPI:
+
 ```bash
-git checkout main
-# Make sure everything is up to date
-git pull
-# Create a new version tag
-git tag v1.0.0
-# Push the tag
-git push origin v1.0.0
+# 1. Update version in pyproject.toml
+# Edit the version field manually, e.g., "1.0.0" -> "1.1.0"
+
+# 2. Update __version__ in src/mcp_server_whisper/__init__.py to match
+
+# 3. Commit the version bump
+git add pyproject.toml src/mcp_server_whisper/__init__.py
+git commit -m "chore: bump version to 1.1.0"
+
+# 4. Create and push the version tag
+git tag v1.1.0
+git push origin main
+git push origin v1.1.0
 ```
+
+This will:
+- Verify the tag version matches pyproject.toml
+- Build the package
+- Create a GitHub release with auto-generated notes
+- Automatically publish to PyPI
+
+**Option 2: Manual Release**
+
+Create a release manually via GitHub UI, then publish optionally:
+
+1. Go to [Releases](https://github.com/arcaputo3/mcp-server-whisper/releases) on GitHub
+2. Click "Draft a new release"
+3. Create a new tag or select an existing one
+4. Fill in release details
+5. Click "Publish release"
+
+When you publish the release, the workflow will automatically publish to PyPI. You can also create a draft release to delay publishing.
 
 ## API Design Philosophy
 
