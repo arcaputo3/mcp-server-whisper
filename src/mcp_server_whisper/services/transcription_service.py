@@ -1,11 +1,10 @@
 """Transcription service - orchestrates transcription operations."""
 
-import asyncio
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from ..infrastructure import FileSystemRepository, OpenAIClientWrapper
-from ..models import ChatWithAudioInputParams, TranscribeAudioInputParams, TranscribeWithEnhancementInputParams
+from ..models import ChatResult, TranscriptionResult
 
 
 class TranscriptionService:
@@ -30,7 +29,7 @@ class TranscriptionService:
         response_format: str = "text",
         prompt: str | None = None,
         timestamp_granularities: list[Literal["word", "segment"]] | None = None,
-    ) -> dict[str, Any]:
+    ) -> TranscriptionResult:
         """Transcribe audio file using OpenAI's transcription API.
 
         Args:
@@ -43,14 +42,14 @@ class TranscriptionService:
 
         Returns:
         -------
-            dict[str, Any]: Transcription result.
+            TranscriptionResult: Transcription result with typed fields.
 
         """
         # Read audio file
         audio_bytes = await self.file_repo.read_audio_file(file_path)
 
         # Transcribe using OpenAI
-        return await self.openai_client.transcribe_audio(
+        result_dict = await self.openai_client.transcribe_audio(
             audio_bytes=audio_bytes,
             filename=file_path.name,
             model=model,  # type: ignore
@@ -59,32 +58,8 @@ class TranscriptionService:
             timestamp_granularities=timestamp_granularities,
         )
 
-    async def transcribe_audio_batch(
-        self,
-        inputs: list[TranscribeAudioInputParams],
-    ) -> list[dict[str, Any]]:
-        """Transcribe multiple audio files in parallel.
-
-        Args:
-        ----
-            inputs: List of transcription parameters.
-
-        Returns:
-        -------
-            list[dict[str, Any]]: List of transcription results.
-
-        """
-
-        async def process_single(input_data: TranscribeAudioInputParams) -> dict[str, Any]:
-            return await self.transcribe_audio(
-                file_path=input_data.input_file_path,
-                model=input_data.model,
-                response_format=input_data.response_format,
-                prompt=input_data.prompt,
-                timestamp_granularities=input_data.timestamp_granularities,
-            )
-
-        return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
+        # Convert dict to typed response model
+        return TranscriptionResult(**result_dict)
 
     async def chat_with_audio(
         self,
@@ -92,7 +67,7 @@ class TranscriptionService:
         model: str = "gpt-4o-audio-preview-2024-12-17",
         system_prompt: str | None = None,
         user_prompt: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> ChatResult:
         """Chat with audio using GPT-4o audio models.
 
         Args:
@@ -104,7 +79,7 @@ class TranscriptionService:
 
         Returns:
         -------
-            dict[str, Any]: Chat completion response.
+            ChatResult: Chat response with typed text field.
 
         """
         # Validate format
@@ -116,7 +91,7 @@ class TranscriptionService:
         audio_bytes = await self.file_repo.read_audio_file(file_path)
 
         # Chat with audio using OpenAI
-        return await self.openai_client.chat_with_audio(
+        result_dict = await self.openai_client.chat_with_audio(
             audio_bytes=audio_bytes,
             audio_format=ext,  # type: ignore
             model=model,  # type: ignore
@@ -124,49 +99,5 @@ class TranscriptionService:
             user_prompt=user_prompt,
         )
 
-    async def chat_with_audio_batch(
-        self,
-        inputs: list[ChatWithAudioInputParams],
-    ) -> list[dict[str, Any]]:
-        """Chat with multiple audio files in parallel.
-
-        Args:
-        ----
-            inputs: List of chat parameters.
-
-        Returns:
-        -------
-            list[dict[str, Any]]: List of chat responses.
-
-        """
-
-        async def process_single(input_data: ChatWithAudioInputParams) -> dict[str, Any]:
-            return await self.chat_with_audio(
-                file_path=input_data.input_file_path,
-                model=input_data.model,
-                system_prompt=input_data.system_prompt,
-                user_prompt=input_data.user_prompt,
-            )
-
-        return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
-
-    async def transcribe_with_enhancement_batch(
-        self,
-        inputs: list[TranscribeWithEnhancementInputParams],
-    ) -> list[dict[str, Any]]:
-        """Transcribe multiple audio files with enhancement templates in parallel.
-
-        Args:
-        ----
-            inputs: List of enhancement parameters.
-
-        Returns:
-        -------
-            list[dict[str, Any]]: List of enhanced transcription results.
-
-        """
-        # Convert enhancement params to transcribe params
-        converted_inputs = [input_.to_transcribe_audio_input_params() for input_ in inputs]
-
-        # Use the standard transcribe batch method
-        return await self.transcribe_audio_batch(converted_inputs)
+        # Convert dict to typed response model
+        return ChatResult(**result_dict)

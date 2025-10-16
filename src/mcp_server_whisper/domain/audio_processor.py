@@ -1,8 +1,8 @@
 """Audio processing domain logic (pure business logic, no I/O)."""
 
-import asyncio
 from pathlib import Path
 
+import anyio
 from pydub import AudioSegment  # type: ignore
 
 from ..constants import DEFAULT_MAX_FILE_SIZE_MB, DEFAULT_TTS_SAMPLE_RATE, SupportedChatWithAudioFormat
@@ -41,11 +41,12 @@ class AudioProcessor:
         """
         try:
             # Export to temporary path
-            await asyncio.to_thread(
-                audio_data.export,
-                str(output_path),
-                format=target_format,
-                parameters=["-ac", "2"],
+            await anyio.to_thread.run_sync(
+                lambda: audio_data.export(
+                    str(output_path),
+                    format=target_format,
+                    parameters=["-ac", "2"],
+                )
             )
 
             # Read the converted file
@@ -82,11 +83,12 @@ class AudioProcessor:
             original_frame_rate = audio_data.frame_rate
             print(f"[Compression] Original frame rate: {original_frame_rate}, converting to {target_sample_rate}.")
 
-            await asyncio.to_thread(
-                audio_data.export,
-                str(output_path),
-                format="mp3",
-                parameters=["-ar", str(target_sample_rate)],
+            await anyio.to_thread.run_sync(
+                lambda: audio_data.export(
+                    str(output_path),
+                    format="mp3",
+                    parameters=["-ar", str(target_sample_rate)],
+                )
             )
 
             # Read the compressed file
@@ -115,11 +117,7 @@ class AudioProcessor:
         """
         try:
             format_str = file_path.suffix[1:]  # Remove leading dot
-            return await asyncio.to_thread(
-                AudioSegment.from_file,
-                str(file_path),
-                format=format_str,
-            )
+            return await anyio.to_thread.run_sync(lambda: AudioSegment.from_file(str(file_path), format=format_str))
         except Exception as e:
             raise AudioConversionError(f"Failed to load audio file {file_path}: {e}") from e
 
@@ -170,17 +168,17 @@ class AudioProcessor:
                 # Load each chunk
                 chunk_io = BytesIO(chunk)
                 if format == "mp3":
-                    segment = await asyncio.to_thread(AudioSegment.from_mp3, chunk_io)
+                    segment = await anyio.to_thread.run_sync(lambda: AudioSegment.from_mp3(chunk_io))
                 elif format == "wav":
-                    segment = await asyncio.to_thread(AudioSegment.from_wav, chunk_io)
+                    segment = await anyio.to_thread.run_sync(lambda: AudioSegment.from_wav(chunk_io))
                 else:
-                    segment = await asyncio.to_thread(AudioSegment.from_file, chunk_io, format=format)
+                    segment = await anyio.to_thread.run_sync(lambda: AudioSegment.from_file(chunk_io, format=format))
 
                 combined += segment
 
             # Export combined audio to bytes
             output = BytesIO()
-            await asyncio.to_thread(combined.export, output, format=format)
+            await anyio.to_thread.run_sync(lambda: combined.export(output, format=format))
             return output.getvalue()
 
         except Exception as e:

@@ -1,13 +1,12 @@
 """Text-to-speech service - orchestrates TTS operations."""
 
-import asyncio
 import time
 from pathlib import Path
 
 from ..config import check_and_get_audio_path
 from ..domain import AudioProcessor
 from ..infrastructure import FileSystemRepository, OpenAIClientWrapper
-from ..models import CreateClaudecastInputParams
+from ..models import TTSResult
 from ..utils import split_text_for_tts
 
 
@@ -35,7 +34,7 @@ class TTSService:
         voice: str = "nova",
         instructions: str | None = None,
         speed: float = 1.0,
-    ) -> Path:
+    ) -> TTSResult:
         """Generate text-to-speech audio from text.
 
         Args:
@@ -49,7 +48,7 @@ class TTSService:
 
         Returns:
         -------
-            Path: Path to the generated audio file.
+            TTSResult: Result with path to the generated audio file.
 
         """
         # Set default output path if not provided
@@ -98,33 +97,4 @@ class TTSService:
             # Write combined audio file
             await self.file_repo.write_audio_file(output_file_path, combined_audio)
 
-        return output_file_path
-
-    async def create_speech_batch(
-        self,
-        inputs: list[CreateClaudecastInputParams],
-    ) -> list[dict[str, Path]]:
-        """Generate TTS for multiple text prompts in parallel.
-
-        Args:
-        ----
-            inputs: List of TTS parameters.
-
-        Returns:
-        -------
-            list[dict[str, Path]]: List of output paths.
-
-        """
-
-        async def process_single(input_data: CreateClaudecastInputParams) -> dict[str, Path]:
-            output_path = await self.create_speech(
-                text_prompt=input_data.text_prompt,
-                output_file_path=input_data.output_file_path,
-                model=input_data.model,
-                voice=input_data.voice,
-                instructions=input_data.instructions,
-                speed=input_data.speed,
-            )
-            return {"output_path": output_path}
-
-        return await asyncio.gather(*[process_single(input_data) for input_data in inputs])
+        return TTSResult(output_path=output_file_path)

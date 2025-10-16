@@ -131,10 +131,10 @@ MCP Server Whisper is an MCP-compatible server that provides audio transcription
 - **Extensibility**: Add new features without modifying existing code
 
 ### Performance
-- **Parallel Processing**: Batch operations using asyncio throughout
+- **Structured Concurrency**: Task groups using anyio for safe parallel processing
 - **LRU Caching**: Smart caching with mtime-based invalidation
 - **Async I/O**: Non-blocking file operations with aiofiles
-- **Concurrent API Calls**: Parallel OpenAI requests
+- **Concurrent API Calls**: Parallel OpenAI requests with result collection
 
 ## Project Structure
 
@@ -181,8 +181,9 @@ src/mcp_server_whisper/
 ## Technology Stack
 
 - **Language**: Python 3.10+
-- **Audio Processing**: pydub
-- **Async Framework**: asyncio, aiofiles
+- **Audio Processing**: pydub, audioop-lts (Python 3.13+)
+- **Async Framework**: anyio (structured concurrency), aiofiles
+- **Concurrency**: aioresult for result collection from task groups
 - **MCP Framework**: FastMCP
 - **API Integration**: OpenAI Python client
 - **Data Validation**: Pydantic models

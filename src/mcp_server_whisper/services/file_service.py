@@ -1,12 +1,14 @@
 """File discovery and management service."""
 
-import asyncio
 from typing import Optional
+
+import anyio
+from aioresult import ResultCapture
 
 from ..constants import SortBy
 from ..domain import FileFilterSorter
 from ..infrastructure import FileSystemRepository, get_cached_audio_file_support
-from ..models import FilePathSupportParams, ListAudioFilesInputParams
+from ..models import FilePathSupportParams
 
 
 class FileService:
@@ -75,19 +77,18 @@ class FileService:
         )
 
         # Step 2: Get metadata for all files in parallel (with caching)
-        cache_tasks = []
-        for path in file_paths:
+        async def get_support(path):
             path_str = str(path)
             mtime = path.stat().st_mtime
-            cache_tasks.append(
-                get_cached_audio_file_support(
-                    path_str,
-                    mtime,
-                    self.file_repo.get_audio_file_support,
-                )
+            return await get_cached_audio_file_support(
+                path_str,
+                mtime,
+                self.file_repo.get_audio_file_support,
             )
 
-        file_support_results = await asyncio.gather(*cache_tasks)
+        async with anyio.create_task_group() as tg:
+            captures = [ResultCapture.start_soon(tg, get_support, path) for path in file_paths]
+        file_support_results = [c.result() for c in captures]
 
         # Step 3: Apply domain-level filters (duration, modified time)
         filtered_results = [
@@ -108,35 +109,3 @@ class FileService:
         sorted_results = self.filter_sorter.sort_files(filtered_results, sort_by, reverse)
 
         return sorted_results
-
-    async def list_audio_files_batch(
-        self,
-        inputs: list[ListAudioFilesInputParams],
-    ) -> list[list[FilePathSupportParams]]:
-        """Process multiple list requests in parallel.
-
-        Args:
-        ----
-            inputs: List of input parameters for each request.
-
-        Returns:
-        -------
-            list[list[FilePathSupportParams]]: List of results for each request.
-
-        """
-
-        async def process_single(input_data: ListAudioFilesInputParams) -> list[FilePathSupportParams]:
-            return await self.list_audio_files(
-                pattern=input_data.pattern,
-                min_size_bytes=input_data.min_size_bytes,
-                max_size_bytes=input_data.max_size_bytes,
-                min_duration_seconds=input_data.min_duration_seconds,
-                max_duration_seconds=input_data.max_duration_seconds,
-                min_modified_time=input_data.min_modified_time,
-                max_modified_time=input_data.max_modified_time,
-                format_filter=input_data.format,
-                sort_by=input_data.sort_by,
-                reverse=input_data.reverse,
-            )
-
-        return await asyncio.gather(*[process_single(input_data) for input_data in inputs])

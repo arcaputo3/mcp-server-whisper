@@ -281,7 +281,8 @@ MCP Server Whisper is built on the Model Context Protocol, which standardizes ho
 
 **Under the hood, it uses:**
 - `pydub` for audio file manipulation (with `audioop-lts` for Python 3.13+)
-- `asyncio` for concurrent processing
+- `anyio` for structured concurrency and task group management
+- `aioresult` for collecting results from parallel task groups
 - OpenAI's latest transcription models (including gpt-4o-transcribe)
 - OpenAI's GPT-4o audio models for enhanced understanding
 - OpenAI's gpt-4o-mini-tts for high-quality speech synthesis

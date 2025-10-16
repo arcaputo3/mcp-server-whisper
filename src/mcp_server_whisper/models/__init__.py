@@ -7,6 +7,7 @@ from .audio import (
     ListAudioFilesInputParams,
 )
 from .base import BaseAudioInputParams, BaseInputPath
+from .responses import AudioProcessingResult, ChatResult, TranscriptionResult, TTSResult
 from .transcription import (
     ChatWithAudioInputParams,
     TranscribeAudioInputParams,
@@ -31,4 +32,9 @@ __all__ = [
     "TranscribeWithEnhancementInputParams",
     # TTS models
     "CreateClaudecastInputParams",
+    # Response models
+    "AudioProcessingResult",
+    "TranscriptionResult",
+    "ChatResult",
+    "TTSResult",
 ]

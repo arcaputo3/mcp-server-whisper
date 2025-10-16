@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "aiofiles",
+    "aioresult",
+    "anyio",
     "audioop-lts; python_version >= '3.13'",
     "dotenv",
     "ffmpeg-python",
@@ -19,7 +21,7 @@ name = "Richie Caputo"
 email = "rcaputo3@tjclp.com"
 
 [dependency-groups]
-dev = [ "mypy", "pre-commit", "pytest", "pytest-asyncio", "pytest-cov", "ruff", "toml", "types-aiofiles",]
+dev = [ "mypy", "pre-commit", "pytest", "pytest-anyio", "pytest-cov", "ruff", "toml", "types-aiofiles",]
 
 [build-system]
 requires = [ "hatchling",]
@@ -47,6 +49,5 @@ ignore = [ "D203", "D213",]  # D203/D211 conflict, D212/D213 conflict - use Goog
 fixable = [ "I", "E", "W",]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+anyio_backends = ["asyncio"]
 filterwarnings = [ "ignore:Unused async fixture loop scope:pytest.PytestWarning",]

@@ -5,6 +5,7 @@ from pathlib import Path
 from ..constants import DEFAULT_MAX_FILE_SIZE_MB, SupportedChatWithAudioFormat
 from ..domain import AudioProcessor
 from ..infrastructure import FileSystemRepository
+from ..models import AudioProcessingResult
 
 
 class AudioService:
@@ -26,7 +27,7 @@ class AudioService:
         input_file: Path,
         output_path: Path | None = None,
         target_format: SupportedChatWithAudioFormat = "mp3",
-    ) -> Path:
+    ) -> AudioProcessingResult:
         """Convert audio file to supported format (mp3 or wav).
 
         Args:
@@ -37,7 +38,7 @@ class AudioService:
 
         Returns:
         -------
-            Path: Path to the converted audio file.
+            AudioProcessingResult: Result with path to the converted audio file.
 
         """
         # Determine output path
@@ -57,14 +58,14 @@ class AudioService:
         # Write converted file
         await self.file_repo.write_audio_file(output_path, converted_bytes)
 
-        return output_path
+        return AudioProcessingResult(output_path=output_path)
 
     async def compress_audio(
         self,
         input_file: Path,
         output_path: Path | None = None,
         max_mb: int = DEFAULT_MAX_FILE_SIZE_MB,
-    ) -> Path:
+    ) -> AudioProcessingResult:
         """Compress audio file if it exceeds size limit.
 
         Args:
@@ -75,7 +76,7 @@ class AudioService:
 
         Returns:
         -------
-            Path: Path to the compressed audio file (or original if no compression needed).
+            AudioProcessingResult: Result with path to the compressed audio file (or original if no compression needed).
 
         """
         # Check if compression is needed
@@ -83,14 +84,15 @@ class AudioService:
         needs_compression = self.processor.calculate_compression_needed(file_size, max_mb)
 
         if not needs_compression:
-            return input_file  # No compression needed
+            return AudioProcessingResult(output_path=input_file)  # No compression needed
 
         print(f"\n[AudioService] File '{input_file}' size > {max_mb}MB. Attempting compression...")
 
         # Convert to MP3 if not already
         if input_file.suffix.lower() != ".mp3":
             print("[AudioService] Converting to MP3 first...")
-            input_file = await self.convert_audio(input_file, None, "mp3")
+            conversion_result = await self.convert_audio(input_file, None, "mp3")
+            input_file = conversion_result.output_path
 
         # Determine output path
         if output_path is None:
@@ -108,14 +110,14 @@ class AudioService:
 
         print(f"[AudioService] Compressed file size: {len(compressed_bytes)} bytes")
 
-        return output_path
+        return AudioProcessingResult(output_path=output_path)
 
     async def maybe_compress_file(
         self,
         input_file: Path,
         output_path: Path | None = None,
         max_mb: int = DEFAULT_MAX_FILE_SIZE_MB,
-    ) -> Path:
+    ) -> AudioProcessingResult:
         """Compress file if needed, maintaining backward compatibility.
 
         This method provides the same interface as the original server.py function.
@@ -128,7 +130,7 @@ class AudioService:
 
         Returns:
         -------
-            Path: Path to the (possibly compressed) audio file.
+            AudioProcessingResult: Result with path to the (possibly compressed) audio file.
 
         """
         return await self.compress_audio(input_file, output_path, max_mb)

@@ -4,6 +4,8 @@ import base64
 from io import BytesIO
 from typing import Any, Literal, Optional, cast
 
+import anyio
+from aioresult import ResultCapture
 from openai import AsyncOpenAI
 from openai.types import AudioModel, AudioResponseFormat
 from openai.types.audio.speech_model import SpeechModel
@@ -213,7 +215,6 @@ class OpenAIClientWrapper:
             TTSAPIError: If any API call fails.
 
         """
-        import asyncio
 
         async def generate_chunk(chunk: str) -> bytes:
             return await self.text_to_speech(
@@ -225,6 +226,8 @@ class OpenAIClientWrapper:
             )
 
         try:
-            return await asyncio.gather(*[generate_chunk(chunk) for chunk in text_chunks])
+            async with anyio.create_task_group() as tg:
+                captures = [ResultCapture.start_soon(tg, generate_chunk, chunk) for chunk in text_chunks]
+            return [c.result() for c in captures]
         except Exception as e:
             raise TTSAPIError(f"Batch TTS generation failed: {e}") from e

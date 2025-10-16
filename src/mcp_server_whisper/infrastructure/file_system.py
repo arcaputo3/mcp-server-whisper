@@ -1,11 +1,11 @@
 """File system operations for audio file management."""
 
-import asyncio
 import re
 from pathlib import Path
 from typing import Optional
 
 import aiofiles
+import anyio
 from openai.types import AudioModel
 from pydub import AudioSegment  # type: ignore
 
@@ -73,7 +73,7 @@ class FileSystemRepository:
         duration_seconds = None
         try:
             # Load just the metadata to get duration
-            audio = await asyncio.to_thread(AudioSegment.from_file, str(file_path), format=audio_format)
+            audio = await anyio.to_thread.run_sync(lambda: AudioSegment.from_file(str(file_path), format=audio_format))
             # Convert from milliseconds to seconds
             duration_seconds = len(audio) / 1000.0
         except Exception:
