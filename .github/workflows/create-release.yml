@@ -1,21 +1,16 @@
-name: Release & Publish
+name: Create Release
 
 on:
   push:
     tags:
       - 'v*'  # Trigger on any tag starting with 'v'
-  release:
-    types: [published]  # Trigger when a release is published (manual or automatic)
 
 permissions:
   contents: write
-  id-token: write  # Required for PyPI trusted publishing
 
 jobs:
   create-release:
     name: Create GitHub Release
-    # Only run this job when triggered by a tag push
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -61,33 +56,3 @@ jobs:
           generate_release_notes: true
           files: dist/*
           token: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-to-pypi:
-    name: Publish to PyPI
-    # Only run this job when triggered by a release being published
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/mcp-server-whisper
-    permissions:
-      id-token: write  # IMPORTANT: mandatory for Trusted Publishing
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.14'
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Build package
-        run: uv build
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
