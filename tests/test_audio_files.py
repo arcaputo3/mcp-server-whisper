@@ -2,10 +2,8 @@
 
 import pytest
 
-from mcp_server_whisper.server import (
-    ListAudioFilesInputParams,
-    SortBy,
-)
+from mcp_server_whisper.constants import SortBy
+from mcp_server_whisper.models import ListAudioFilesInputParams
 
 
 @pytest.mark.asyncio

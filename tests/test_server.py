@@ -1,6 +1,7 @@
 """Test the whisper server functionality."""
 
-from mcp_server_whisper.server import ListAudioFilesInputParams, SortBy
+from mcp_server_whisper.constants import SortBy
+from mcp_server_whisper.models import ListAudioFilesInputParams
 
 
 def test_sort_by_enum() -> None:
