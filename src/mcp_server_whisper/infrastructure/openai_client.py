@@ -2,7 +2,6 @@
 
 import base64
 from io import BytesIO
-from pathlib import Path
 from typing import Any, Literal, Optional, cast
 
 from openai import AsyncOpenAI
@@ -12,7 +11,7 @@ from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMess
 from pydantic import BaseModel
 
 from ..constants import AudioChatModel
-from ..exceptions import TTSAPIError, TranscriptionAPIError
+from ..exceptions import TranscriptionAPIError, TTSAPIError
 
 
 class OpenAIClientWrapper:

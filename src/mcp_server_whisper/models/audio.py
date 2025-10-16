@@ -3,9 +3,8 @@
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from openai.types import AudioModel
+from pydantic import BaseModel, Field
 
 from ..constants import (
     DEFAULT_MAX_FILE_SIZE_MB,
@@ -13,7 +12,7 @@ from ..constants import (
     SortBy,
     SupportedChatWithAudioFormat,
 )
-from .base import BaseAudioInputParams, BaseInputPath
+from .base import BaseAudioInputParams
 
 
 class ConvertAudioInputParams(BaseAudioInputParams):

@@ -23,10 +23,13 @@ def create_transcription_tools(mcp):
     transcription_service = TranscriptionService(file_repo, openai_client)
 
     @mcp.tool(
-        description="A tool used to transcribe audio files. It is recommended to use `gpt-4o-mini-transcribe` by default. "
-        "If the user wants maximum performance, use `gpt-4o-transcribe`. "
-        "Rarely should you use `whisper-1` as it is least performant, but it is available if needed. "
-        "You can use prompts to guide the transcription process based on the users preference."
+        description=(
+            "A tool used to transcribe audio files. "
+            "It is recommended to use `gpt-4o-mini-transcribe` by default. "
+            "If the user wants maximum performance, use `gpt-4o-transcribe`. "
+            "Rarely should you use `whisper-1` as it is least performant, but it is available if needed. "
+            "You can use prompts to guide the transcription process based on the users preference."
+        )
     )
     async def transcribe_audio(inputs: list[TranscribeAudioInputParams]) -> list[dict[str, Any]]:
         """Transcribe audio using OpenAI's transcribe API for multiple files in parallel.
@@ -35,7 +38,9 @@ def create_transcription_tools(mcp):
         """
         return await transcription_service.transcribe_audio_batch(inputs)
 
-    @mcp.tool(description="A tool used to chat with audio files. The response will be a response to the audio file sent.")
+    @mcp.tool(
+        description="A tool used to chat with audio files. The response will be a response to the audio file sent."
+    )
     async def chat_with_audio(
         inputs: list[ChatWithAudioInputParams],
     ) -> list[dict[str, Any]]:

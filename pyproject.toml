@@ -43,6 +43,7 @@ convention = "google"
 
 [tool.ruff.lint]
 select = [ "E", "F", "I", "D", "W",]
+ignore = [ "D203", "D213",]  # D203/D211 conflict, D212/D213 conflict - use Google style
 fixable = [ "I", "E", "W",]
 
 [tool.pytest.ini_options]

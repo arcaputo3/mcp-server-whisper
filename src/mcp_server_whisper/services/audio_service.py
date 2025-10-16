@@ -1,6 +1,5 @@
 """Audio processing service - orchestrates domain and infrastructure."""
 
-import tempfile
 from pathlib import Path
 
 from ..constants import DEFAULT_MAX_FILE_SIZE_MB, SupportedChatWithAudioFormat
@@ -90,7 +89,7 @@ class AudioService:
 
         # Convert to MP3 if not already
         if input_file.suffix.lower() != ".mp3":
-            print(f"[AudioService] Converting to MP3 first...")
+            print("[AudioService] Converting to MP3 first...")
             input_file = await self.convert_audio(input_file, None, "mp3")
 
         # Determine output path

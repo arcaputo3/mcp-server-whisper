@@ -52,7 +52,7 @@ class AudioFileCache:
         mtime: float,  # noqa: ARG002 - Used as cache key
         get_support_func,
     ) -> FilePathSupportParams:
-        """Internal implementation for getting file support.
+        """Get file support using the provided function.
 
         Args:
         ----
