@@ -20,8 +20,8 @@ class CreateClaudecastInputParams(BaseModel):
         default="gpt-4o-mini-tts", description="TTS model to use. gpt-4o-mini-tts is always preferred."
     )
     voice: TTSVoice = Field(
-        default="nova",
-        description="Voice for the TTS (options: alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer)",
+        default="alloy",
+        description="Voice for the TTS",
     )
     instructions: str | None = Field(
         default=None,

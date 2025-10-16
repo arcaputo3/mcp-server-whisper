@@ -6,10 +6,15 @@ from typing import Literal
 # Type Aliases
 SupportedChatWithAudioFormat = Literal["mp3", "wav"]
 AudioChatModel = Literal[
-    "gpt-4o-audio-preview-2024-10-01", "gpt-4o-audio-preview-2024-12-17", "gpt-4o-mini-audio-preview-2024-12-17"
+    "gpt-4o-audio-preview",
+    "gpt-4o-audio-preview-2024-10-01",
+    "gpt-4o-audio-preview-2024-12-17",
+    "gpt-4o-audio-preview-2025-06-03",
+    "gpt-4o-mini-audio-preview",
+    "gpt-4o-mini-audio-preview-2024-12-17",
 ]
 EnhancementType = Literal["detailed", "storytelling", "professional", "analytical"]
-TTSVoice = Literal["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
+TTSVoice = Literal["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"]
 
 # Supported Audio Formats
 TRANSCRIBE_AUDIO_FORMATS = {

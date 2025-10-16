@@ -30,7 +30,7 @@ def create_tts_tools(mcp):
     async def create_claudecast(
         text_prompt: str,
         model: SpeechModel = "gpt-4o-mini-tts",
-        voice: TTSVoice = "nova",
+        voice: TTSVoice = "alloy",
         instructions: Optional[str] = None,
         speed: float = 1.0,
         output_file_path: Optional[Path] = None,

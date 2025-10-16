@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from ..config import check_and_get_audio_path
+from ..constants import TTSVoice
 from ..domain import AudioProcessor
 from ..infrastructure import FileSystemRepository, OpenAIClientWrapper
 from ..models import TTSResult
@@ -31,7 +32,7 @@ class TTSService:
         text_prompt: str,
         output_file_path: Path | None = None,
         model: str = "gpt-4o-mini-tts",
-        voice: str = "nova",
+        voice: TTSVoice = "alloy",
         instructions: str | None = None,
         speed: float = 1.0,
     ) -> TTSResult:

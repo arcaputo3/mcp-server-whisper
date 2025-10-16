@@ -12,7 +12,7 @@ from openai.types.audio.speech_model import SpeechModel
 from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
 from pydantic import BaseModel
 
-from ..constants import AudioChatModel
+from ..constants import AudioChatModel, TTSVoice
 from ..exceptions import TranscriptionAPIError, TTSAPIError
 
 
@@ -119,14 +119,14 @@ class OpenAIClientWrapper:
             # Build messages
             messages: list[ChatCompletionMessageParam] = []
             if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})  # type: ignore
+                messages.append({"role": "system", "content": system_prompt})
 
             user_content: list[ChatCompletionContentPartParam] = []
             if user_prompt:
-                user_content.append({"type": "text", "text": user_prompt})  # type: ignore
+                user_content.append({"type": "text", "text": user_prompt})
 
             user_content.append(
-                {  # type: ignore
+                {
                     "type": "input_audio",
                     "input_audio": {"data": audio_b64, "format": cast(Literal["wav", "mp3"], audio_format)},
                 }
@@ -148,7 +148,7 @@ class OpenAIClientWrapper:
         self,
         text: str,
         model: SpeechModel = "gpt-4o-mini-tts",
-        voice: str = "nova",
+        voice: TTSVoice = "alloy",
         instructions: Optional[str] = None,
         speed: float = 1.0,
     ) -> bytes:
@@ -192,7 +192,7 @@ class OpenAIClientWrapper:
         self,
         text_chunks: list[str],
         model: SpeechModel = "gpt-4o-mini-tts",
-        voice: str = "nova",
+        voice: TTSVoice = "alloy",
         instructions: Optional[str] = None,
         speed: float = 1.0,
     ) -> list[bytes]:

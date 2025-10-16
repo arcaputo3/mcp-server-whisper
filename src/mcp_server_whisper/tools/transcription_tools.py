@@ -69,7 +69,7 @@ def create_transcription_tools(mcp):
     )
     async def chat_with_audio(
         input_file_path: Path,
-        model: AudioChatModel = "gpt-4o-audio-preview-2024-12-17",
+        model: AudioChatModel = "gpt-4o-audio-preview",
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
     ) -> ChatResult:

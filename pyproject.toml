@@ -5,15 +5,15 @@ description = "An MCP server for transcribing audio files using OpenAI Whisper a
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "aiofiles",
+    "aiofiles>=25.1.0",
     "aioresult",
     "anyio",
     "audioop-lts; python_version >= '3.13'",
     "dotenv",
     "ffmpeg-python",
-    "mcp[cli]",
-    "openai>=1.68.2",
-    "pydantic-settings",
+    "mcp>=1.17.0",
+    "openai>=2.4.0",
+    "pydantic-settings>=2.11.0",
     "pydub",
 ]
 [[project.authors]]
@@ -21,7 +21,7 @@ name = "Richie Caputo"
 email = "rcaputo3@tjclp.com"
 
 [dependency-groups]
-dev = [ "mypy", "pre-commit", "pytest", "pytest-anyio", "pytest-cov", "ruff", "toml", "types-aiofiles",]
+dev = [ "mypy>=1.18.2", "pre-commit", "pytest", "pytest-anyio", "pytest-cov", "ruff>=0.14.0", "toml", "types-aiofiles",]
 
 [build-system]
 requires = [ "hatchling",]
