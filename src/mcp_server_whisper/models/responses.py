@@ -1,6 +1,5 @@
 """Response models for MCP tool outputs."""
 
-from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -9,9 +8,7 @@ from pydantic import BaseModel, Field
 class AudioProcessingResult(BaseModel):
     """Result from audio processing operations (convert, compress)."""
 
-    output_path: Path = Field(description="Path to the processed audio file")
-
-    model_config = {"arbitrary_types_allowed": True}
+    output_file: str = Field(description="Name of the processed audio file")
 
 
 class TranscriptionResult(BaseModel):
@@ -40,6 +37,4 @@ class ChatResult(BaseModel):
 class TTSResult(BaseModel):
     """Result from text-to-speech operations."""
 
-    output_path: Path = Field(description="Path to the generated audio file")
-
-    model_config = {"arbitrary_types_allowed": True}
+    output_file: str = Field(description="Name of the generated audio file")

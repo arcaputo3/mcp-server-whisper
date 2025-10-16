@@ -1,12 +1,10 @@
 """Text-to-speech service - orchestrates TTS operations."""
 
 import time
-from pathlib import Path
 
-from ..config import check_and_get_audio_path
 from ..constants import TTSVoice
 from ..domain import AudioProcessor
-from ..infrastructure import FileSystemRepository, OpenAIClientWrapper
+from ..infrastructure import FileSystemRepository, OpenAIClientWrapper, SecurePathResolver
 from ..models import TTSResult
 from ..utils import split_text_for_tts
 
@@ -14,23 +12,27 @@ from ..utils import split_text_for_tts
 class TTSService:
     """Service for text-to-speech operations."""
 
-    def __init__(self, file_repo: FileSystemRepository, openai_client: OpenAIClientWrapper):
+    def __init__(
+        self, file_repo: FileSystemRepository, openai_client: OpenAIClientWrapper, path_resolver: SecurePathResolver
+    ):
         """Initialize the TTS service.
 
         Args:
         ----
             file_repo: File system repository for I/O operations.
             openai_client: OpenAI API client wrapper.
+            path_resolver: Secure path resolver for filename to path conversion.
 
         """
         self.file_repo = file_repo
         self.openai_client = openai_client
         self.audio_processor = AudioProcessor()
+        self.path_resolver = path_resolver
 
     async def create_speech(
         self,
         text_prompt: str,
-        output_file_path: Path | None = None,
+        output_filename: str | None = None,
         model: str = "gpt-4o-mini-tts",
         voice: TTSVoice = "alloy",
         instructions: str | None = None,
@@ -41,7 +43,7 @@ class TTSService:
         Args:
         ----
             text_prompt: Text to convert to speech.
-            output_file_path: Optional output path.
+            output_filename: Optional name for output file.
             model: TTS model to use.
             voice: Voice to use for TTS.
             instructions: Optional instructions for speech generation.
@@ -49,16 +51,17 @@ class TTSService:
 
         Returns:
         -------
-            TTSResult: Result with path to the generated audio file.
+            TTSResult: Result with name of the generated audio file.
 
         """
-        # Set default output path if not provided
-        if output_file_path is None:
-            audio_path = check_and_get_audio_path()
-            output_file_path = audio_path / f"speech_{time.time_ns()}.mp3"
+        # Determine output filename
+        if output_filename is None:
+            default_name = f"speech_{time.time_ns()}.mp3"
+        else:
+            default_name = output_filename
 
-        # Ensure parent directory exists
-        output_file_path.parent.mkdir(parents=True, exist_ok=True)
+        # Resolve to full path
+        output_file_path = self.path_resolver.resolve_output(output_filename, default_name)
 
         # Split text if it exceeds the API limit
         text_chunks = split_text_for_tts(text_prompt)
@@ -98,4 +101,4 @@ class TTSService:
             # Write combined audio file
             await self.file_repo.write_audio_file(output_file_path, combined_audio)
 
-        return TTSResult(output_path=output_file_path)
+        return TTSResult(output_file=output_file_path.name)

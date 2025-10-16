@@ -1,6 +1,5 @@
 """Audio processing related Pydantic models."""
 
-from pathlib import Path
 from typing import Optional
 
 from openai.types import AudioModel
@@ -34,9 +33,9 @@ class CompressAudioInputParams(BaseAudioInputParams):
 
 
 class FilePathSupportParams(BaseModel):
-    """Params for checking if a file at a path supports transcription."""
+    """Params for checking if a file supports transcription."""
 
-    file_path: Path = Field(description="Path to the audio file")
+    file_name: str = Field(description="Name of the audio file")
     transcription_support: Optional[list[AudioModel]] = Field(
         default=None, description="List of transcription models that support this file format"
     )
@@ -49,8 +48,6 @@ class FilePathSupportParams(BaseModel):
     duration_seconds: Optional[float] = Field(
         default=None, description="Duration of the audio file in seconds, if available"
     )
-
-    model_config = {"arbitrary_types_allowed": True}
 
 
 class ListAudioFilesInputParams(BaseModel):

@@ -119,10 +119,10 @@ mcp install src/mcp_server_whisper/server.py [--env-file .env]
 
 ## Supported Audio Formats
 
-| Model | Supported Formats |
-|-------|-------------------|
+| Model      | Supported Formats                               |
+|------------|-------------------------------------------------|
 | Transcribe | flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm |
-| Chat | mp3, wav |
+| Chat       | mp3, wav                                        |
 
 **Note:** Files larger than 25MB are automatically compressed to meet API limits.
 

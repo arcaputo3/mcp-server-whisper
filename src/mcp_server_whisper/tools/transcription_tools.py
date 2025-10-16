@@ -1,13 +1,12 @@
 """MCP tools for transcription operations."""
 
-from pathlib import Path
 from typing import Literal, Optional
 
 from openai.types import AudioModel, AudioResponseFormat
 
 from ..config import check_and_get_audio_path
 from ..constants import ENHANCEMENT_PROMPTS, AudioChatModel, EnhancementType
-from ..infrastructure import FileSystemRepository, OpenAIClientWrapper
+from ..infrastructure import FileSystemRepository, OpenAIClientWrapper, SecurePathResolver
 from ..models import ChatResult, TranscriptionResult
 from ..services import TranscriptionService
 
@@ -24,7 +23,8 @@ def create_transcription_tools(mcp):
     audio_path = check_and_get_audio_path()
     file_repo = FileSystemRepository(audio_path)
     openai_client = OpenAIClientWrapper()
-    transcription_service = TranscriptionService(file_repo, openai_client)
+    path_resolver = SecurePathResolver(audio_path)
+    transcription_service = TranscriptionService(file_repo, openai_client, path_resolver)
 
     @mcp.tool(
         description=(
@@ -36,7 +36,7 @@ def create_transcription_tools(mcp):
         )
     )
     async def transcribe_audio(
-        input_file_path: Path,
+        input_file_name: str,
         model: AudioModel = "gpt-4o-mini-transcribe",
         response_format: AudioResponseFormat = "text",
         prompt: Optional[str] = None,
@@ -45,7 +45,7 @@ def create_transcription_tools(mcp):
         """Transcribe audio using OpenAI's transcribe API.
 
         Args:
-            input_file_path: Path to the input audio file to process
+            input_file_name: Name of the input audio file to process
             model: The transcription model to use
             response_format: The response format (text, json, verbose_json, etc.)
             prompt: Optional prompt to guide the transcription
@@ -57,7 +57,7 @@ def create_transcription_tools(mcp):
 
         """
         return await transcription_service.transcribe_audio(
-            file_path=input_file_path,
+            filename=input_file_name,
             model=model,
             response_format=response_format,
             prompt=prompt,
@@ -68,7 +68,7 @@ def create_transcription_tools(mcp):
         description="A tool used to chat with audio files. The response will be a response to the audio file sent."
     )
     async def chat_with_audio(
-        input_file_path: Path,
+        input_file_name: str,
         model: AudioChatModel = "gpt-4o-audio-preview",
         system_prompt: Optional[str] = None,
         user_prompt: Optional[str] = None,
@@ -76,7 +76,7 @@ def create_transcription_tools(mcp):
         """Chat with audio using GPT-4o audio models.
 
         Args:
-            input_file_path: Path to the input audio file to process
+            input_file_name: Name of the input audio file to process
             model: The audio LLM model to use for transcription
             system_prompt: Optional system prompt
             user_prompt: Optional user prompt
@@ -87,7 +87,7 @@ def create_transcription_tools(mcp):
 
         """
         return await transcription_service.chat_with_audio(
-            file_path=input_file_path,
+            filename=input_file_name,
             model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -95,7 +95,7 @@ def create_transcription_tools(mcp):
 
     @mcp.tool()
     async def transcribe_with_enhancement(
-        input_file_path: Path,
+        input_file_name: str,
         enhancement_type: EnhancementType = "detailed",
         model: AudioModel = "gpt-4o-mini-transcribe",
         response_format: AudioResponseFormat = "text",
@@ -110,7 +110,7 @@ def create_transcription_tools(mcp):
         - analytical: Includes analysis of speech patterns, key points, and structure
 
         Args:
-            input_file_path: Path to the input audio file to process
+            input_file_name: Name of the input audio file to process
             enhancement_type: Type of enhancement to apply to the transcription
             model: The transcription model to use
             response_format: The response format
@@ -126,7 +126,7 @@ def create_transcription_tools(mcp):
 
         # Call transcribe_audio with the enhancement prompt
         return await transcription_service.transcribe_audio(
-            file_path=input_file_path,
+            filename=input_file_name,
             model=model,
             response_format=response_format,
             prompt=prompt,

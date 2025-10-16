@@ -144,7 +144,7 @@ class FileFilterSorter:
 
         """
         if sort_by == SortBy.NAME:
-            return lambda x: str(x.file_path)
+            return lambda x: x.file_name
         elif sort_by == SortBy.SIZE:
             return lambda x: x.size_bytes
         elif sort_by == SortBy.DURATION:
@@ -156,7 +156,7 @@ class FileFilterSorter:
             return lambda x: x.format
         else:
             # Default to sorting by name
-            return lambda x: str(x.file_path)
+            return lambda x: x.file_name
 
     @staticmethod
     def sort_files(

@@ -81,7 +81,7 @@ class FileSystemRepository:
             pass
 
         return FilePathSupportParams(
-            file_path=file_path,
+            file_name=file_path.name,
             transcription_support=transcription_support,
             chat_support=chat_support,
             modified_time=file_stats.st_mtime,

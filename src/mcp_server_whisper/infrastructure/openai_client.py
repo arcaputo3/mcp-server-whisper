@@ -2,7 +2,7 @@
 
 import base64
 from io import BytesIO
-from typing import Any, Literal, Optional, cast
+from typing import Any, Literal, Optional
 
 import anyio
 from aioresult import ResultCapture
@@ -128,10 +128,10 @@ class OpenAIClientWrapper:
             user_content.append(
                 {
                     "type": "input_audio",
-                    "input_audio": {"data": audio_b64, "format": cast(Literal["wav", "mp3"], audio_format)},
+                    "input_audio": {"data": audio_b64, "format": audio_format},
                 }
             )
-            messages.append({"role": "user", "content": user_content})  # type: ignore
+            messages.append({"role": "user", "content": user_content})
 
             completion = await self.client.chat.completions.create(
                 model=model,
