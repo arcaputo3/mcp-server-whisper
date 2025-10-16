@@ -288,9 +288,9 @@ git checkout main
 # Make sure everything is up to date
 git pull
 # Create a new version tag
-git tag v0.1.1
+git tag v1.0.0
 # Push the tag
-git push origin v0.1.1
+git push origin v1.0.0
 ```
 
 ## API Design Philosophy

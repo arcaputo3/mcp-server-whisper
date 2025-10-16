@@ -17,7 +17,7 @@ A clear and concise description of what actually happened.
 ## Environment
 - OS: [e.g. macOS, Windows, Linux]
 - Python Version: [e.g. 3.10.5]
-- Package Version: [e.g. 0.1.0]
+- Package Version: [e.g. 1.0.0]
 
 ## Additional Context
 Add any other context about the problem here.
