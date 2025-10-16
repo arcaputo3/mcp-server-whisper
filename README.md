@@ -137,7 +137,7 @@ The `.mcp.json` configuration:
 
 #### Text-to-Speech
 
-- `create_claudecast` - Generate text-to-speech audio using OpenAI's TTS API:
+- `create_audio` - Generate text-to-speech audio using OpenAI's TTS API:
   - Supports `gpt-4o-mini-tts` (preferred) and other speech models
   - Multiple voice options (alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar)
   - Speed adjustment and custom instructions
@@ -201,14 +201,14 @@ Claude will:
 </details>
 
 <details>
-<summary>Generating Text-to-Speech with Claudecast</summary>
+<summary>Generating Text-to-Speech Audio</summary>
 
 ```
-Claude, create a claudecast with this script: "Welcome to our podcast! Today we'll be discussing artificial intelligence trends in 2025." Use the shimmer voice.
+Claude, create audio with this script: "Welcome to our podcast! Today we'll be discussing artificial intelligence trends in 2025." Use the shimmer voice.
 ```
 
 Claude will:
-1. Use the `create_claudecast` tool with:
+1. Use the `create_audio` tool with:
    - `text_prompt` containing the script
    - `voice: "shimmer"`
    - `model: "gpt-4o-mini-tts"` (default high-quality model)

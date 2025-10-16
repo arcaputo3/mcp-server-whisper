@@ -27,7 +27,7 @@ def create_tts_tools(mcp: MCPServer) -> None:
     tts_service = TTSService(file_repo, openai_client, path_resolver)
 
     @mcp.tool(description="Create text-to-speech audio using OpenAI's TTS API with model and voice selection.")
-    async def create_claudecast(
+    async def create_audio(
         text_prompt: str,
         model: SpeechModel = "gpt-4o-mini-tts",
         voice: TTSVoice = "alloy",
