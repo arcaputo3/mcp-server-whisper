@@ -8,6 +8,7 @@ dependencies = [
     "aiofiles>=25.1.0",
     "aioresult",
     "anyio",
+    "async-lru>=2.0.5",
     "audioop-lts; python_version >= '3.13'",
     "dotenv",
     "ffmpeg-python",

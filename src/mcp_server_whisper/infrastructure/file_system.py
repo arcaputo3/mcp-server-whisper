@@ -58,13 +58,9 @@ class FileSystemRepository:
             else None
         )
 
-        # Get file stats
+        # Get file stats (including size - much faster than reading entire file!)
         file_stats = file_path.stat()
-
-        # Get file size using aiofiles
-        async with aiofiles.open(file_path, "rb") as f:
-            file_content = await f.read()
-        size_bytes = len(file_content)
+        size_bytes = file_stats.st_size
 
         # Get audio format (remove the dot from extension)
         audio_format = file_ext[1:] if file_ext.startswith(".") else file_ext
