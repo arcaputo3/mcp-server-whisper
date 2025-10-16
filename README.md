@@ -44,27 +44,54 @@ uv run pre-commit install
 
 ## Environment Setup
 
-Create a `.env` file with the following variables:
+Create a `.env` file based on the provided `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your actual values:
 
 ```
 OPENAI_API_KEY=your_openai_api_key
 AUDIO_FILES_PATH=/path/to/your/audio/files
 ```
 
+**Note:** Environment variables must be available at runtime. For local development with Claude, use a tool like `dotenv-cli` to load them (see Usage section below).
+
 ## Usage
 
-### Starting the Server
+### Local Development with Claude
 
-To run the MCP server in development mode:
+The project includes a `.mcp.json` configuration file for local development with Claude. To use it:
+
+1. Ensure your `.env` file is configured with the required environment variables
+2. Launch Claude with environment variables loaded:
 
 ```bash
-mcp dev src/mcp_server_whisper/server.py
+bunx dotenv-cli -- claude
 ```
 
-To install the server for use with Claude Desktop or other MCP clients:
+This will:
+- Load environment variables from your `.env` file
+- Launch Claude with the MCP server configured per `.mcp.json`
+- Enable hot-reloading during development
 
-```bash
-mcp install src/mcp_server_whisper/server.py [--env-file .env]
+The `.mcp.json` configuration:
+
+```json
+{
+  "mcpServers": {
+    "whisper": {
+      "command": "uv",
+      "args": ["run", "mcp-server-whisper"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "AUDIO_FILES_PATH": "${AUDIO_FILES_PATH}"
+      }
+    }
+  }
+}
 ```
 
 ### Exposed MCP Tools
@@ -193,7 +220,7 @@ Claude will:
 
 ## Configuration with Claude Desktop
 
-Add this to your `claude_desktop_config.json`:
+For production use with Claude Desktop (as opposed to local development), add this to your `claude_desktop_config.json`:
 
 ### UVX
 
@@ -247,9 +274,11 @@ pre-commit run --all-files
 The project uses GitHub Actions for CI/CD:
 
 1. **Lint & Type Check**: Ensures code quality with ruff and strict mypy type checking
-2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11, 3.12, 3.13, 3.14)
+2. **Tests**: Runs tests on multiple Python versions (3.10, 3.11, 3.12, 3.13, 3.14, 3.14t)
 3. **Build**: Creates distribution packages
 4. **Publish**: Automatically publishes to PyPI when a new version tag is pushed
+
+**Note:** Python 3.14t is the free-threaded build (without GIL) for testing true parallelism.
 
 To create a new release version:
 ```bash
