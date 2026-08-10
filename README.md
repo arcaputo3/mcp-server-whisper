@@ -1,3 +1,5 @@
+
+
 # MCP Server Whisper
 
 <div align="center">
@@ -50,10 +52,10 @@ uv run pre-commit install
 
 ## Environment Setup
 
-Create a `.env` file based on the provided `.env.example`:
+Create a `.env` file in the project root directory:
 
 ```bash
-cp .env.example .env
+touch .env
 ```
 
 Edit `.env` with your actual values:
